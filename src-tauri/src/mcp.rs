@@ -10,9 +10,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter};
 
-use crate::{
-  MemoryChangedPayload, MemoryStore, SaveMemoryPayload, MEMORIES_CHANGED_EVENT,
-};
+use crate::{MemoryChangedPayload, MemoryStore, SaveMemoryPayload, MEMORIES_CHANGED_EVENT};
 
 const SERVER_NAME: &str = "wikimem";
 
@@ -101,8 +99,8 @@ fn register_list_tool(builder: ServerBuilder, store: &Arc<MemoryStore>) -> Serve
       let summaries = store
         .list()
         .map_err(|err| anyhow!("Failed to list memories: {err}"))?;
-      let as_json = serde_json::to_string(&summaries)
-        .context("Failed to serialise memory summaries")?;
+      let as_json =
+        serde_json::to_string(&summaries).context("Failed to serialise memory summaries")?;
       Ok(ToolCallResult {
         content: vec![ToolContent::Text { text: as_json }],
         is_error: None,
@@ -146,8 +144,7 @@ fn register_create_tool(
           body: params.body,
         })
         .map_err(|err| anyhow!("Failed to create memory: {err}"))?;
-      let as_json =
-        serde_json::to_string(&detail).context("Failed to serialise created memory")?;
+      let as_json = serde_json::to_string(&detail).context("Failed to serialise created memory")?;
       let _ = app_handle.emit(
         MEMORIES_CHANGED_EVENT,
         MemoryChangedPayload::saved(detail.id.clone()),
@@ -204,8 +201,7 @@ fn register_update_tool(
           body: replacement_body,
         })
         .map_err(|err| anyhow!("Failed to update memory: {err}"))?;
-      let as_json =
-        serde_json::to_string(&detail).context("Failed to serialise updated memory")?;
+      let as_json = serde_json::to_string(&detail).context("Failed to serialise updated memory")?;
       let _ = app_handle.emit(
         MEMORIES_CHANGED_EVENT,
         MemoryChangedPayload::saved(detail.id.clone()),
