@@ -59,6 +59,9 @@ context—while keeping a fast, tactile editing experience for humans.
 3. Add memories by using the **New Memory** action in the UI (coming online as
    part of the incremental build-out).
 
+The desktop app also exposes an MCP server over stdio in the same process, so
+any MCP-compatible agent can connect without launching a separate binary.
+
 ### Directory Layout
 
 - `src-tauri/` – Rust backend, Tauri commands, soon the MCP server.
