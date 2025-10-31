@@ -28,12 +28,13 @@ context—while keeping a fast, tactile editing experience for humans.
 │  Lexical    │                      │  • load_memory                 │
 │             │ ◀─────────────────── │  • save_memory                 │
 └─────────────┘  emits updates       │  • delete_memory               │
-                                       │  • future: mcp_* handlers      │
-                                       └──────────┬────────────────────┘
-                                                  │
-                                      writes/reads│Markdown
-                                                  ▼
-                                   `app_data_dir/memories/*.md`
+                                     │  • search_memories             │
+                                     │  • future: mcp_* handlers      │
+                                     └─────────────┬──────────────────┘
+                                                   │
+                                       writes/reads│Markdown
+                                                   ▼
+                                    `app_data_dir/memories/*.md`
 ```
 
 ### Key pieces
@@ -73,9 +74,9 @@ any MCP-compatible agent can connect without launching a separate binary.
 
 - [x] Integrate SlipStack React UI scaffold.
 - [x] Add Tauri command layer for memory CRUD operations.
+- [x] Expose MCP server endpoints backed by the same storage layer.
+- [x] Synchronize AI agent actions with SlipStack navigation state.
 - [ ] Build Lexical-powered Markdown editor surface tied to those commands.
-- [ ] Expose MCP server endpoints backed by the same storage layer.
-- [ ] Synchronize AI agent actions with SlipStack navigation state.
 
 Contributions and experiments are welcome—this project is evolving rapidly as
 the notebook workflow takes shape.

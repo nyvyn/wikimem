@@ -17,3 +17,14 @@ export interface MemorySummary {
 export interface MemoryDetail extends MemorySummary {
   body: string;
 }
+
+export interface MemorySearchResultDto {
+  id: string;
+  title: string;
+  snippet: string;
+  updated_at: number;
+}
+
+export interface MemorySearchResult extends MemorySummary {
+  snippet: string;
+}

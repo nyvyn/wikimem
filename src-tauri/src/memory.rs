@@ -33,6 +33,14 @@ pub struct SaveMemoryPayload {
   pub body: String,
 }
 
+#[derive(Debug, Serialize)]
+pub struct MemorySearchResult {
+  pub id: String,
+  pub title: String,
+  pub snippet: String,
+  pub updated_at: i64,
+}
+
 #[derive(Debug, Serialize, Clone)]
 pub struct MemoryChangedPayload {
   pub action: &'static str,
@@ -163,6 +171,57 @@ impl MemoryStore {
     Ok(())
   }
 
+  pub fn search(&self, query: &str) -> Result<Vec<MemorySearchResult>, String> {
+    let trimmed = query.trim();
+    if trimmed.is_empty() {
+      return Ok(Vec::new());
+    }
+
+    let needle = trimmed.to_lowercase();
+    let mut matches = Vec::new();
+
+    for entry in fs::read_dir(&self.base_dir).map_err(to_string)? {
+      let entry = entry.map_err(to_string)?;
+      let path = entry.path();
+      if path.extension() != Some(OsStr::new("md")) {
+        continue;
+      }
+      let id = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default()
+        .to_string();
+      let mut file = File::open(&path).map_err(to_string)?;
+      let mut body = String::new();
+      file.read_to_string(&mut body).map_err(to_string)?;
+      let title = extract_title(&body);
+      let updated_at = file_updated_at(&path);
+
+      let title_match = title.to_lowercase().contains(&needle);
+      let body_match = !title_match && body.to_lowercase().contains(&needle);
+
+      if !(title_match || body_match) {
+        continue;
+      }
+
+      let snippet = if title_match {
+        ellipsize(&title)
+      } else {
+        extract_snippet(&body, &needle)
+      };
+
+      matches.push(MemorySearchResult {
+        id,
+        title,
+        snippet,
+        updated_at,
+      });
+    }
+
+    matches.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+    Ok(matches)
+  }
+
   fn file(&self, id: &str) -> PathBuf {
     self.base_dir.join(format!("{id}.md"))
   }
@@ -221,6 +280,11 @@ pub(crate) fn delete_memory(app: AppHandle, id: String) -> Result<(), String> {
   Ok(())
 }
 
+#[tauri::command]
+pub(crate) fn search_memories(app: AppHandle, query: String) -> Result<Vec<MemorySearchResult>, String> {
+  MemoryStore::from_app(&app)?.search(&query)
+}
+
 fn to_string<E: std::fmt::Display>(err: E) -> String {
   err.to_string()
 }
@@ -247,4 +311,29 @@ fn extract_title(body: &str) -> String {
     return trimmed.to_string();
   }
   "Untitled memory".to_string()
+}
+
+fn extract_snippet(body: &str, needle_lower: &str) -> String {
+  for line in body.lines() {
+    if line.to_lowercase().contains(needle_lower) {
+      return ellipsize(line);
+    }
+  }
+  ellipsize(body)
+}
+
+fn ellipsize(text: &str) -> String {
+  let cleaned = text.trim().replace('\n', " ");
+  const MAX_LEN: usize = 160;
+  if cleaned.chars().count() <= MAX_LEN {
+    cleaned
+  } else {
+    cleaned
+      .chars()
+      .take(MAX_LEN)
+      .collect::<String>()
+      .trim_end()
+      .to_string()
+      + "…"
+  }
 }

@@ -34,6 +34,11 @@ struct DeleteMemoryArgs {
   id: String,
 }
 
+#[derive(Deserialize)]
+struct SearchMemoriesArgs {
+  query: String,
+}
+
 pub(crate) fn spawn_mcp_stdio_server(app_handle: AppHandle) {
   let handle = app_handle.clone();
 
@@ -77,6 +82,7 @@ fn build_mcp_stdio_server(app_handle: &AppHandle) -> Result<Server> {
   builder = register_create_tool(builder, &store, &app_handle);
   builder = register_update_tool(builder, &store, &app_handle);
   builder = register_delete_tool(builder, &store, &app_handle);
+  builder = register_search_tool(builder, &store);
 
   builder.build()
 }
@@ -247,6 +253,38 @@ fn register_delete_tool(
         content: vec![ToolContent::Text {
           text: format!("Deleted memory {}", params.id),
         }],
+        is_error: None,
+      })
+    },
+  )
+}
+
+fn register_search_tool(builder: ServerBuilder, store: &Arc<MemoryStore>) -> ServerBuilder {
+  let store = Arc::clone(store);
+  builder.with_tool(
+    "search_memories",
+    Some("Search memories by keyword across titles and body content."),
+    json!({
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Search text to match against titles and content."
+        }
+      },
+      "required": ["query"],
+      "additionalProperties": false
+    }),
+    move |args: Value| {
+      let params: SearchMemoriesArgs =
+        serde_json::from_value(args).context("Invalid arguments for search_memories")?;
+      let results = store
+        .search(&params.query)
+        .map_err(|err| anyhow!("Failed to search memories: {err}"))?;
+      let as_json =
+        serde_json::to_string(&results).context("Failed to serialise search results")?;
+      Ok(ToolCallResult {
+        content: vec![ToolContent::Text { text: as_json }],
         is_error: None,
       })
     },
