@@ -149,9 +149,7 @@ impl MemoryStore {
     };
 
     let mut file = File::create(&path).map_err(to_string)?;
-    file
-      .write_all(body_content.as_bytes())
-      .map_err(to_string)?;
+    file.write_all(body_content.as_bytes()).map_err(to_string)?;
     file.flush().map_err(to_string)?;
 
     let updated_at = file_updated_at(&path);
@@ -197,8 +195,16 @@ impl MemoryStore {
       let title = extract_title(&body);
       let updated_at = file_updated_at(&path);
 
-      let title_match = title.to_lowercase().contains(&needle);
-      let body_match = !title_match && body.to_lowercase().contains(&needle);
+      let title_lower = title.to_lowercase();
+      let mut body_lower = String::new();
+
+      let title_match = title_lower.contains(&needle);
+      let body_match = if title_match {
+        false
+      } else {
+        body_lower = body.to_lowercase();
+        body_lower.contains(&needle)
+      };
 
       if !(title_match || body_match) {
         continue;
@@ -281,7 +287,10 @@ pub(crate) fn delete_memory(app: AppHandle, id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub(crate) fn search_memories(app: AppHandle, query: String) -> Result<Vec<MemorySearchResult>, String> {
+pub(crate) fn search_memories(
+  app: AppHandle,
+  query: String,
+) -> Result<Vec<MemorySearchResult>, String> {
   MemoryStore::from_app(&app)?.search(&query)
 }
 

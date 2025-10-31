@@ -6,7 +6,7 @@ import { ListItemNode, ListNode } from "@lexical/list";
 import {
   $convertFromMarkdownString,
   $convertToMarkdownString,
-  TRANSFORMERS,
+  type Transformer,
 } from "@lexical/markdown";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
@@ -18,10 +18,22 @@ import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import type { EditorState } from "lexical";
-import { type JSX, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type JSX,
+  type KeyboardEvent,
+  type MouseEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { loadMemory, saveMemory } from "./memory-api";
-import type { MemoryDetail } from "./memory-types";
+import { MemoryLinkPlugin } from "./memory-link-plugin";
+import { createMemoryMarkdownTransformers } from "./memory-markdown";
+import { MemoryNode } from "./memory-node";
+import type { MemoryDetail, MemorySummary } from "./memory-types";
 import { deriveTitleFromMarkdown } from "./memory-utils";
 
 const editorPaneClass = "flex h-full flex-col bg-white text-slate-900";
@@ -48,6 +60,8 @@ export interface MemoryEditorPaneProps {
   memoryId?: string;
   updatePaneTitle: (paneId: string, title: string) => void;
   onPersist: (detail: MemoryDetail) => void;
+  summaries: MemorySummary[];
+  onOpenMemory: (memory: MemorySummary) => void;
 }
 
 export function MemoryEditorPane({
@@ -55,6 +69,8 @@ export function MemoryEditorPane({
   memoryId,
   updatePaneTitle,
   onPersist,
+  summaries,
+  onOpenMemory,
 }: MemoryEditorPaneProps): JSX.Element {
   const [currentMemoryId, setCurrentMemoryId] = useState<string | undefined>(
     memoryId,
@@ -62,15 +78,29 @@ export function MemoryEditorPane({
   const [initialMarkdown, setInitialMarkdown] = useState<string>(
     currentMemoryId ? "" : "# Untitled memory\n\n",
   );
-  const [draftMarkdown, setDraftMarkdown] = useState<string>(
-    currentMemoryId ? "" : "# Untitled memory\n\n",
-  );
+  const [loadVersion, setLoadVersion] = useState(0);
   const [loading, setLoading] = useState<boolean>(Boolean(memoryId));
   const [error, setError] = useState<string | null>(null);
   const derivedTitleRef = useRef<string>(
     deriveTitleFromMarkdown(initialMarkdown),
   );
-  const pendingSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resolveMemorySummary = useCallback(
+    (id: string) => {
+      const trimmedId = id.trim();
+      if (!trimmedId) {
+        return undefined;
+      }
+      if (currentMemoryId && trimmedId === currentMemoryId) {
+        return {
+          id: currentMemoryId,
+          title: derivedTitleRef.current ?? "Untitled memory",
+          updatedAt: Math.floor(Date.now() / 1000),
+        } satisfies MemorySummary;
+      }
+      return summaries.find((summary) => summary.id === trimmedId);
+    },
+    [currentMemoryId, summaries],
+  );
 
   useEffect(() => {
     if (!memoryId) {
@@ -81,13 +111,24 @@ export function MemoryEditorPane({
       .then((detail) => {
         setCurrentMemoryId(detail.id);
         setInitialMarkdown(detail.body);
-        setDraftMarkdown(detail.body);
         updatePaneTitle(paneId, detail.title);
         derivedTitleRef.current = detail.title;
         setError(null);
+        setLoadVersion((version) => version + 1);
       })
       .catch((err) => {
-        setError(err instanceof Error ? err.message : String(err));
+        const message = err instanceof Error ? err.message : String(err);
+        if (message.toLowerCase().includes("no such file or directory")) {
+          const defaultMarkdown = `# ${memoryId}\n\n`;
+          setCurrentMemoryId(memoryId);
+          setInitialMarkdown(defaultMarkdown);
+          derivedTitleRef.current = deriveTitleFromMarkdown(defaultMarkdown);
+          updatePaneTitle(paneId, derivedTitleRef.current);
+          setError(null);
+          setLoadVersion((version) => version + 1);
+          return;
+        }
+        setError(message);
       })
       .finally(() => {
         setLoading(false);
@@ -96,63 +137,63 @@ export function MemoryEditorPane({
 
   const editorNamespace = useMemo(() => `memory-editor-${paneId}`, [paneId]);
 
-  const isDirty = draftMarkdown !== initialMarkdown;
-  const canSave = draftMarkdown.trim().length > 0;
-  const shouldPersist = isDirty && canSave;
-
-  useEffect(() => {
-    return () => {
-      if (pendingSaveRef.current) {
-        clearTimeout(pendingSaveRef.current);
-        pendingSaveRef.current = null;
+  const openMemoryFromElement = useCallback(
+    (element: HTMLElement) => {
+      const rawId = element.dataset.memoryId;
+      if (!rawId) {
+        return;
       }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!shouldPersist) {
-      return;
-    }
-    if (pendingSaveRef.current) {
-      clearTimeout(pendingSaveRef.current);
-    }
-    const snapshot = draftMarkdown;
-    pendingSaveRef.current = setTimeout(async () => {
-      try {
-        const derivedTitle = deriveTitleFromMarkdown(snapshot);
-        const detail = await saveMemory({
-          id: currentMemoryId,
-          title: derivedTitle,
-          body: snapshot,
-        });
-        setCurrentMemoryId(detail.id);
-        setInitialMarkdown(detail.body);
-        setDraftMarkdown(detail.body);
-        derivedTitleRef.current = detail.title;
-        updatePaneTitle(paneId, detail.title);
-        onPersist(detail);
-        setError(null);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-      } finally {
-        pendingSaveRef.current = null;
+      const id = rawId.trim();
+      if (!id) {
+        return;
       }
-    }, 1000);
+      const title = element.dataset.memoryTitle ?? "Untitled memory";
+      const fallback: MemorySummary = {
+        id,
+        title,
+        updatedAt: Math.floor(Date.now() / 1000),
+      };
+      const existing = resolveMemorySummary(id);
+      onOpenMemory(existing ?? fallback);
+    },
+    [onOpenMemory, resolveMemorySummary],
+  );
 
-    return () => {
-      if (pendingSaveRef.current) {
-        clearTimeout(pendingSaveRef.current);
-        pendingSaveRef.current = null;
+  const handleMemoryLinkClick = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
+      const target = event.target as HTMLElement | null;
+      const memoryElement =
+        target?.closest<HTMLElement>("[data-memory-link]") ?? null;
+      if (!memoryElement) {
+        return;
       }
-    };
-  }, [
-    currentMemoryId,
-    draftMarkdown,
-    onPersist,
-    paneId,
-    shouldPersist,
-    updatePaneTitle,
-  ]);
+      event.preventDefault();
+      event.stopPropagation();
+      openMemoryFromElement(memoryElement);
+    },
+    [openMemoryFromElement],
+  );
+
+  const handleMemoryLinkKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLDivElement>) => {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      if (!target || !target.hasAttribute("data-memory-link")) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      openMemoryFromElement(target);
+    },
+    [openMemoryFromElement],
+  );
+
+  const markdownTransformers = useMemo(
+    () => createMemoryMarkdownTransformers(resolveMemorySummary),
+    [resolveMemorySummary],
+  );
 
   if (loading) {
     return (
@@ -178,15 +219,26 @@ export function MemoryEditorPane({
               ListItemNode,
               CodeNode,
               LinkNode,
+              MemoryNode,
             ],
             theme: lexicalTheme,
           }}
         >
-          <MarkdownInitPlugin markdown={initialMarkdown} />
+          <MarkdownInitPlugin
+            markdown={initialMarkdown}
+            version={loadVersion}
+            transformers={markdownTransformers}
+          />
           <div className="flex h-full flex-col">
             <RichTextPlugin
               contentEditable={
-                <ContentEditable className="flex-1 overflow-y-auto bg-white px-6 py-6 text-base text-slate-800 focus:outline-none" />
+                <div className="flex-1 overflow-y-auto" role="presentation">
+                  <ContentEditable
+                    className="h-full w-full bg-white px-6 py-6 text-base text-slate-800 focus:outline-none"
+                    onClick={handleMemoryLinkClick}
+                    onKeyDown={handleMemoryLinkKeyDown}
+                  />
+                </div>
               }
               placeholder={
                 <div className="pointer-events-none select-none px-6 py-6 text-sm text-slate-400">
@@ -198,17 +250,28 @@ export function MemoryEditorPane({
               ErrorBoundary={LexicalErrorBoundary}
             />
             <HistoryPlugin />
-            <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
+            <MarkdownShortcutPlugin transformers={markdownTransformers} />
+            <MemoryLinkPlugin onMemorySelected={onOpenMemory} />
             <OnChangePlugin
               onChange={(editorState: EditorState) => {
                 editorState.read(() => {
-                  const markdown = $convertToMarkdownString(TRANSFORMERS);
-                  setDraftMarkdown(markdown);
+                  const markdown =
+                    $convertToMarkdownString(markdownTransformers);
+
                   const computedTitle = deriveTitleFromMarkdown(markdown);
                   if (derivedTitleRef.current !== computedTitle) {
                     derivedTitleRef.current = computedTitle;
                     updatePaneTitle(paneId, computedTitle);
                   }
+
+                  saveMemory({
+                    id: currentMemoryId,
+                    title: computedTitle,
+                    body: markdown,
+                  }).then((detail) => {
+                    setCurrentMemoryId(detail.id);
+                    onPersist(detail);
+                  });
                 });
               }}
             />
@@ -223,18 +286,30 @@ export function MemoryEditorPane({
   );
 }
 
-function MarkdownInitPlugin({ markdown }: { markdown: string }): null {
+function MarkdownInitPlugin({
+  markdown,
+  version,
+  transformers,
+}: {
+  markdown: string;
+  version: number;
+  transformers: Transformer[];
+}): null {
   const [editor] = useLexicalComposerContext();
+  const initializedRef = useRef(false);
+  const lastVersionRef = useRef<number>(-1);
   useEffect(() => {
-    if (!markdown) {
+    if (!initializedRef.current || lastVersionRef.current !== version) {
       editor.update(() => {
-        $convertFromMarkdownString("# Untitled memory\n\n", TRANSFORMERS);
+        if (!markdown) {
+          $convertFromMarkdownString("# Untitled memory\n\n", transformers);
+        } else {
+          $convertFromMarkdownString(markdown, transformers);
+        }
       });
-      return;
+      initializedRef.current = true;
+      lastVersionRef.current = version;
     }
-    editor.update(() => {
-      $convertFromMarkdownString(markdown, TRANSFORMERS);
-    });
-  }, [editor, markdown]);
+  }, [editor, markdown, transformers, version]);
   return null;
 }

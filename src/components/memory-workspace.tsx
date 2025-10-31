@@ -160,6 +160,8 @@ export function MemoryWorkspace(props: MemoryWorkspaceProps = {}): JSX.Element {
               })
               .catch(() => {});
           }}
+          summaries={summaries}
+          onOpenMemory={openExistingMemory}
         />
       ),
     }));
@@ -170,9 +172,11 @@ export function MemoryWorkspace(props: MemoryWorkspaceProps = {}): JSX.Element {
   }, [
     memoryPanes,
     onMemoriesChanged,
+    openExistingMemory,
     overviewPane,
     promotePane,
     refreshSummaries,
+    summaries,
     updatePaneTitle,
     variant,
   ]);

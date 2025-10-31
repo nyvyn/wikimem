@@ -22,3 +22,11 @@ body {
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.memory-link::before {
+  content: "[[";
+}
+
+.memory-link::after {
+  content: "]]";
+}
