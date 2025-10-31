@@ -4,10 +4,12 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   MemoryDetail,
   MemoryDetailDto,
+  MemorySearchResult,
+  MemorySearchResultDto,
   MemorySummary,
   MemorySummaryDto,
 } from "./memory-types";
-import { toDetail, toSummary } from "./memory-utils";
+import { toDetail, toSearchResult, toSummary } from "./memory-utils";
 
 export async function listMemories(): Promise<MemorySummary[]> {
   const dto = await invoke<MemorySummaryDto[]>("list_memories");
@@ -26,4 +28,13 @@ export async function saveMemory(payload: {
 }): Promise<MemoryDetail> {
   const dto = await invoke<MemoryDetailDto>("save_memory", { payload });
   return toDetail(dto);
+}
+
+export async function searchMemories(
+  query: string,
+): Promise<MemorySearchResult[]> {
+  const dto = await invoke<MemorySearchResultDto[]>("search_memories", {
+    query,
+  });
+  return dto.map(toSearchResult);
 }

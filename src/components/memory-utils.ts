@@ -1,6 +1,8 @@
 import type {
   MemoryDetail,
   MemoryDetailDto,
+  MemorySearchResult,
+  MemorySearchResultDto,
   MemorySummary,
   MemorySummaryDto,
 } from "./memory-types";
@@ -19,6 +21,15 @@ export function toDetail(dto: MemoryDetailDto): MemoryDetail {
     title: dto.title,
     updatedAt: dto.updated_at,
     body: dto.body,
+  };
+}
+
+export function toSearchResult(dto: MemorySearchResultDto): MemorySearchResult {
+  return {
+    id: dto.id,
+    title: dto.title,
+    updatedAt: dto.updated_at,
+    snippet: dto.snippet,
   };
 }
 

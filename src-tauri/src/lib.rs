@@ -1,11 +1,11 @@
 mod mcp;
 pub mod memory;
 pub use memory::{
-  MemoryChangedPayload, MemoryDetail, MemoryStore, MemorySummary, SaveMemoryPayload,
-  MEMORIES_CHANGED_EVENT,
+  MemoryChangedPayload, MemoryDetail, MemorySearchResult, MemoryStore, MemorySummary,
+  SaveMemoryPayload, MEMORIES_CHANGED_EVENT,
 };
 
-use memory::{delete_memory, list_memories, load_memory, save_memory};
+use memory::{delete_memory, list_memories, load_memory, save_memory, search_memories};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -19,7 +19,8 @@ pub fn run() {
       list_memories,
       load_memory,
       save_memory,
-      delete_memory
+      delete_memory,
+      search_memories
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

@@ -3,8 +3,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { MemorySummary } from "@/components/memory-types";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { searchMemories } from "@/components/memory-api";
+import type {
+  MemorySearchResult,
+  MemorySummary,
+} from "@/components/memory-types";
 import type { MemoryWorkspaceProps } from "@/components/memory-workspace";
 
 interface MemorySummaryDto {
@@ -37,6 +41,12 @@ export default function Home() {
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [activeMemory, setActiveMemory] = useState<MemorySummary | null>(null);
   const [mcpHelpOpen, setMcpHelpOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<MemorySearchResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const activeSearchRef = useRef<string | null>(null);
 
   const fetchMemories = useCallback(async () => {
     setMemoriesLoading(true);
@@ -62,10 +72,59 @@ export default function Home() {
   }, [fetchMemories]);
 
   useEffect(() => {
+    const handle = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 250);
+    return () => {
+      clearTimeout(handle);
+    };
+  }, [searchQuery]);
+
+  const runSearch = useCallback((rawQuery: string) => {
+    const trimmed = rawQuery.trim();
+    if (trimmed.length === 0) {
+      activeSearchRef.current = null;
+      setSearchResults([]);
+      setSearchError(null);
+      setSearchLoading(false);
+      return;
+    }
+
+    activeSearchRef.current = trimmed;
+    setSearchLoading(true);
+    searchMemories(trimmed)
+      .then((results) => {
+        if (activeSearchRef.current !== trimmed) {
+          return;
+        }
+        setSearchResults(results);
+        setSearchError(null);
+      })
+      .catch((error) => {
+        if (activeSearchRef.current !== trimmed) {
+          return;
+        }
+        setSearchError(error instanceof Error ? error.message : String(error));
+      })
+      .finally(() => {
+        if (activeSearchRef.current === trimmed) {
+          setSearchLoading(false);
+        }
+      });
+  }, []);
+
+  useEffect(() => {
+    runSearch(debouncedQuery);
+  }, [debouncedQuery, runSearch]);
+
+  useEffect(() => {
     let unlisten: UnlistenFn | null = null;
 
     listen("wikimem://memories-changed", () => {
       fetchMemories().catch(() => {});
+      if (activeSearchRef.current) {
+        runSearch(activeSearchRef.current);
+      }
     })
       .then((fn) => {
         unlisten = fn;
@@ -75,7 +134,7 @@ export default function Home() {
     return () => {
       unlisten?.();
     };
-  }, [fetchMemories]);
+  }, [fetchMemories, runSearch]);
 
   const sortedMemories = useMemo(
     () => [...recentMemories].sort((a, b) => b.updatedAt - a.updatedAt),
@@ -96,6 +155,8 @@ export default function Home() {
     fetchMemories().catch(() => {});
   }, [fetchMemories]);
 
+  const inSearchMode = debouncedQuery.trim().length > 0;
+
   return (
     <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 px-6 py-12">
@@ -114,9 +175,20 @@ export default function Home() {
 
         <section className="flex flex-col gap-6">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-lg font-semibold text-white">
-              Recent memories
-            </h2>
+            <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+              <h2 className="text-lg font-semibold text-white">
+                {inSearchMode ? "Search results" : "Recent memories"}
+              </h2>
+              <div className="relative w-full sm:w-72">
+                <input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search memories…"
+                  className="w-full rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-white/40 focus:outline-none focus:ring-0"
+                  aria-label="Search memories"
+                />
+              </div>
+            </div>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -142,7 +214,41 @@ export default function Home() {
               </button>
             </div>
           </div>
-          {memoriesLoading ? (
+          {inSearchMode ? (
+            searchLoading ? (
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-sm text-slate-400">
+                Searching memories…
+              </div>
+            ) : searchError ? (
+              <div className="rounded-3xl border border-rose-400/40 bg-rose-500/10 p-6 text-sm text-rose-200">
+                {searchError}
+              </div>
+            ) : searchResults.length === 0 ? (
+              <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-slate-400">
+                No matches found for &ldquo;{debouncedQuery.trim()}&rdquo;.
+              </div>
+            ) : (
+              <ul className="grid gap-3 sm:grid-cols-2">
+                {searchResults.map((memory) => (
+                  <li key={memory.id}>
+                    <button
+                      type="button"
+                      onClick={() => openWorkspaceWith(memory)}
+                      className="group flex w-full flex-col gap-2 rounded-3xl border border-white/10 bg-white/5 p-4 text-left transition hover:border-white/30 hover:bg-white/10"
+                    >
+                      <span className="text-base font-medium text-white group-hover:text-slate-100">
+                        {memory.title}
+                      </span>
+                      <p className="text-xs text-slate-400">{memory.snippet}</p>
+                      <span className="text-xs text-slate-500">
+                        Updated {formatTimestamp(memory.updatedAt)}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )
+          ) : memoriesLoading ? (
             <div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-sm text-slate-400">
               Loading memories…
             </div>
@@ -211,7 +317,7 @@ export default function Home() {
                 In another terminal, start an MCP client pointing at the binary.
                 For example, using the MCP CLI from this project root:
                 <pre className="mt-2 rounded-2xl border border-white/10 bg-slate-950/80 p-3 text-xs text-slate-100">
-{`npx @modelcontextprotocol/cli@latest connect stdio \\
+                  {`npx @modelcontextprotocol/cli@latest connect stdio \\
   --command "./src-tauri/target/debug/wikimem"`}
                 </pre>
                 Adjust the path for release builds or your OS (e.g.{" "}
@@ -222,9 +328,9 @@ export default function Home() {
               </li>
               <li>
                 The client now has access to the <code>list_memories</code>,{" "}
-                <code>create_memory</code>, <code>update_memory</code>, and{" "}
-                <code>delete_memory</code> tools. Changes sync with the UI
-                instantly.
+                <code>create_memory</code>, <code>update_memory</code>,{" "}
+                <code>delete_memory</code>, and <code>search_memories</code>{" "}
+                tools. Changes sync with the UI instantly.
               </li>
             </ol>
             <p className="text-xs text-slate-400">
