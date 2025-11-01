@@ -10,10 +10,11 @@ import {
 } from "react";
 import { SlipStackContainer, type SlipStackPaneData } from "slipstack-react";
 
-import { listMemories, saveMemory } from "@/lib/tauri-commands";
+import { saveMemory } from "@/lib/tauri-commands";
 import type { MemoryDetail, MemorySummary } from "@/lib/types";
 import { MemoryEditorPane } from "./memory-editor-pane";
 import { MemoryListPanel } from "./memory-list-panel";
+import { useRecentMemories } from "./use-recent-memories";
 
 interface MemoryPaneConfig {
   paneId: string;
@@ -34,32 +35,15 @@ export interface MemoryWorkspaceProps {
 
 export function MemoryWorkspace(props: MemoryWorkspaceProps = {}): JSX.Element {
   const { initialMemory, onMemoriesChanged, variant = "card" } = props;
-  const [recentMemories, setRecentMemories] = useState<MemorySummary[]>([]);
-  const [recentMemoriesLoading, setRecentMemoriesLoading] = useState(true);
-  const [recentMemoriesError, setRecentMemoriesError] = useState<string | null>(
-    null,
-  );
   const [creatingMemory, setCreatingMemory] = useState(false);
   const [memoryPanes, setMemoryPanes] = useState<MemoryPaneConfig[]>([]);
 
-  const refreshRecentMemories = useCallback(async () => {
-    setRecentMemoriesLoading(true);
-    try {
-      const data = await listMemories();
-      setRecentMemories(data);
-      setRecentMemoriesError(null);
-    } catch (error) {
-      setRecentMemoriesError(
-        error instanceof Error ? error.message : String(error),
-      );
-    } finally {
-      setRecentMemoriesLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    refreshRecentMemories().catch(() => {});
-  }, [refreshRecentMemories]);
+  const {
+    recentMemories,
+    loading: recentMemoriesLoading,
+    error: recentMemoriesError,
+    refresh: refreshRecentMemories,
+  } = useRecentMemories();
 
   const updatePaneTitle = useCallback((memoryId: string, title: string) => {
     setMemoryPanes((prev) =>
