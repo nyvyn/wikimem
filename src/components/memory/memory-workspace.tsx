@@ -10,8 +10,8 @@ import {
 } from "react";
 import { SlipStackContainer, type SlipStackPaneData } from "slipstack-react";
 
-import { listMemories, saveMemory } from "../../lib/tauri-commands";
-import type { MemoryDetail, MemorySummary } from "../../lib/types";
+import { listMemories, saveMemory } from "@/lib/tauri-commands";
+import type { MemoryDetail, MemorySummary } from "@/lib/types";
 import { MemoryEditorPane } from "./memory-editor-pane";
 import { MemoryListPanel } from "./memory-list-panel";
 

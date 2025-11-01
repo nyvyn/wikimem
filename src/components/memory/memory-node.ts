@@ -11,7 +11,7 @@ import {
   TextNode,
 } from "lexical";
 
-import type { MemorySummary } from "../../lib/types";
+import type { MemorySummary } from "@/lib/types";
 
 export type SerializedMemoryNode = Spread<
   {

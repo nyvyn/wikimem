@@ -29,9 +29,9 @@ import {
   useState,
 } from "react";
 
-import { loadMemory, saveMemory } from "../../lib/tauri-commands";
-import type { MemoryDetail, MemorySummary } from "../../lib/types";
-import { deriveTitleFromMarkdown } from "../../lib/utils";
+import { loadMemory, saveMemory } from "@/lib/tauri-commands";
+import type { MemoryDetail, MemorySummary } from "@/lib/types";
+import { deriveTitleFromMarkdown } from "@/lib/utils";
 import { MemoryLinkPlugin } from "./memory-link-plugin";
 import { createMemoryMarkdownTransformers } from "./memory-markdown";
 import { MemoryNode } from "./memory-node";
