@@ -5,7 +5,6 @@ import { LinkNode } from "@lexical/link";
 import { ListItemNode, ListNode } from "@lexical/list";
 import {
   $convertFromMarkdownString,
-  $convertToMarkdownString,
   type Transformer,
 } from "@lexical/markdown";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
@@ -14,10 +13,9 @@ import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPlugin";
-import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
-import { $createParagraphNode, $getRoot, type EditorState } from "lexical";
+import { $createParagraphNode, $getRoot } from "lexical";
 import {
   type JSX,
   type KeyboardEvent,
@@ -32,6 +30,7 @@ import {
 import { loadMemory, saveMemory } from "@/lib/tauri-commands";
 import type { MemoryDetail, MemorySummary } from "@/lib/types";
 import { deriveTitleFromMarkdown } from "@/lib/utils";
+import { AutoSavePlugin } from "./auto-save-plugin";
 import { MemoryLinkPlugin } from "./memory-link-plugin";
 import { createMemoryMarkdownTransformers } from "./memory-markdown";
 import { MemoryNode } from "./memory-node";
@@ -75,9 +74,14 @@ export function MemoryEditorPane({
   onOpenMemory,
 }: MemoryEditorPaneProps): JSX.Element {
   const [currentMemoryId, setCurrentMemoryId] = useState(memoryId);
+  const currentMemoryIdRef = useRef(currentMemoryId);
+  useEffect(() => {
+    currentMemoryIdRef.current = currentMemoryId;
+  }, [currentMemoryId]);
   const [initialMarkdown, setInitialMarkdown] = useState<string>(
     initialDetail?.body ?? "",
   );
+  const initialMarkdownRef = useRef(initialMarkdown);
   const [loading, setLoading] = useState<boolean>(!initialDetail);
   const [error, setError] = useState<string | null>(null);
   const derivedTitleRef = useRef<string>(
@@ -87,9 +91,13 @@ export function MemoryEditorPane({
   useEffect(() => {
     setCurrentMemoryId(memoryId);
     if (initialDetail && initialDetail.id === memoryId) {
-      setInitialMarkdown(initialDetail.body);
-      derivedTitleRef.current = initialDetail.title;
-      updatePaneTitle(memoryId, initialDetail.title);
+      const shouldHydrate = initialMarkdownRef.current !== initialDetail.body;
+      if (shouldHydrate) {
+        initialMarkdownRef.current = initialDetail.body;
+        setInitialMarkdown(initialDetail.body);
+        derivedTitleRef.current = initialDetail.title;
+        updatePaneTitle(memoryId, initialDetail.title);
+      }
       setLoading(false);
       setError(null);
       return;
@@ -99,6 +107,7 @@ export function MemoryEditorPane({
     loadMemory(memoryId)
       .then((detail) => {
         setCurrentMemoryId(detail.id);
+        initialMarkdownRef.current = detail.body;
         setInitialMarkdown(detail.body);
         derivedTitleRef.current = detail.title;
         updatePaneTitle(memoryId, detail.title);
@@ -108,6 +117,7 @@ export function MemoryEditorPane({
         const message = err instanceof Error ? err.message : String(err);
         if (message.toLowerCase().includes("no such file or directory")) {
           const defaultMarkdown = `# ${memoryId}\n\n`;
+          initialMarkdownRef.current = defaultMarkdown;
           setInitialMarkdown(defaultMarkdown);
           derivedTitleRef.current = deriveTitleFromMarkdown(defaultMarkdown);
           updatePaneTitle(memoryId, derivedTitleRef.current);
@@ -258,27 +268,30 @@ export function MemoryEditorPane({
             <HistoryPlugin />
             <MarkdownShortcutPlugin transformers={markdownTransformers} />
             <MemoryLinkPlugin onMemorySelected={onOpenMemory} />
-            <OnChangePlugin
-              onChange={(editorState: EditorState) => {
-                editorState.read(() => {
-                  const markdown =
-                    $convertToMarkdownString(markdownTransformers);
-
-                  const computedTitle = deriveTitleFromMarkdown(markdown);
-                  if (derivedTitleRef.current !== computedTitle) {
-                    derivedTitleRef.current = computedTitle;
-                    updatePaneTitle(currentMemoryId, computedTitle);
-                  }
-
-                  saveMemory({
-                    id: currentMemoryId,
-                    title: computedTitle,
-                    body: markdown,
-                  }).then((detail) => {
+            <AutoSavePlugin
+              transformers={markdownTransformers}
+              initialMarkdown={initialMarkdown}
+              onContentChange={(markdown) => {
+                const computedTitle = deriveTitleFromMarkdown(markdown);
+                if (derivedTitleRef.current !== computedTitle) {
+                  derivedTitleRef.current = computedTitle;
+                  updatePaneTitle(currentMemoryIdRef.current, computedTitle);
+                }
+                initialMarkdownRef.current = markdown;
+                saveMemory({
+                  id: currentMemoryIdRef.current,
+                  title: computedTitle,
+                  body: markdown,
+                })
+                  .then((detail) => {
+                    currentMemoryIdRef.current = detail.id;
                     setCurrentMemoryId(detail.id);
                     onPersist(detail);
+                    setError(null);
+                  })
+                  .catch((err) => {
+                    setError(err instanceof Error ? err.message : String(err));
                   });
-                });
               }}
             />
           </div>

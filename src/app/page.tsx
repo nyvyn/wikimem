@@ -6,7 +6,7 @@ import { useCallback, useState } from "react";
 import { McpInstructionsDialog } from "@/components/memory/mcp-instructions-dialog";
 import { MemoryResultsView } from "@/components/memory/memory-results-view";
 import type { MemoryWorkspaceProps } from "@/components/memory/memory-workspace";
-import { useMemoryResults } from "@/components/memory/use-memory-results";
+import { useMemoryResults } from "@/hooks/use-memory-results";
 import type { MemorySummary } from "@/lib/types";
 
 const MemoryWorkspace = dynamic<MemoryWorkspaceProps>(

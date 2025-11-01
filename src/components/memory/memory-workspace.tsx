@@ -12,7 +12,7 @@ import { SlipStackContainer, type SlipStackPaneData } from "slipstack-react";
 
 import { saveMemory } from "@/lib/tauri-commands";
 import type { MemoryDetail, MemorySummary } from "@/lib/types";
-import { MemoryEditorPane } from "./memory-editor-pane";
+import { MemoryEditorPane } from "../editor/memory-editor-pane";
 import { MemoryListPanel } from "./memory-list-panel";
 import { useRecentMemories } from "./use-recent-memories";
 
@@ -36,6 +36,7 @@ export interface MemoryWorkspaceProps {
 export function MemoryWorkspace(props: MemoryWorkspaceProps = {}): JSX.Element {
   const { initialMemory, onMemoriesChanged, variant = "card" } = props;
   const [creatingMemory, setCreatingMemory] = useState(false);
+  const [creationError, setCreationError] = useState<string | null>(null);
   const [memoryPanes, setMemoryPanes] = useState<MemoryPaneConfig[]>([]);
 
   const {
@@ -61,9 +62,19 @@ export function MemoryWorkspace(props: MemoryWorkspaceProps = {}): JSX.Element {
   const openMemory = useCallback(
     (summary: MemorySummary, detail?: MemoryDetail) => {
       setMemoryPanes((prev) => {
-        const filtered = prev.filter((pane) => pane.memoryId !== summary.id);
+        const index = prev.findIndex((pane) => pane.memoryId === summary.id);
+        if (index >= 0) {
+          const next = [...prev];
+          next[index] = {
+            paneId: memoryPaneId(summary.id),
+            memoryId: summary.id,
+            title: summary.title,
+            initialDetail: detail ?? next[index].initialDetail,
+          };
+          return next;
+        }
         return [
-          ...filtered,
+          ...prev,
           {
             paneId: memoryPaneId(summary.id),
             memoryId: summary.id,
@@ -98,13 +109,12 @@ export function MemoryWorkspace(props: MemoryWorkspaceProps = {}): JSX.Element {
         title: detail.title,
         updatedAt: detail.updatedAt,
       };
+      setCreationError(null);
       openMemory(summary, detail);
       await refreshRecentMemories();
       onMemoriesChanged?.();
     } catch (error) {
-      setRecentMemoriesError(
-        error instanceof Error ? error.message : String(error),
-      );
+      setCreationError(error instanceof Error ? error.message : String(error));
     } finally {
       setCreatingMemory(false);
     }
@@ -138,7 +148,7 @@ export function MemoryWorkspace(props: MemoryWorkspaceProps = {}): JSX.Element {
         <MemoryListPanel
           className={listPaneClass}
           loading={recentMemoriesLoading}
-          error={recentMemoriesError}
+          error={creationError ?? recentMemoriesError}
           recentMemories={recentMemories}
           onSelect={openExistingMemory}
           onCreate={() => {
@@ -150,6 +160,7 @@ export function MemoryWorkspace(props: MemoryWorkspaceProps = {}): JSX.Element {
     }),
     [
       createAndOpenMemory,
+      creationError,
       creatingMemory,
       openExistingMemory,
       recentMemories,
