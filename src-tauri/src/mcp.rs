@@ -40,7 +40,7 @@ struct SearchMemoriesArgs {
 pub(crate) fn spawn_mcp_stdio_server(app_handle: AppHandle) {
   let handle = app_handle.clone();
 
-  #[allow(clippy::let_underscore_drop)]
+  #[allow(let_underscore_drop)]
   let _ = thread::Builder::new()
     .name("wikimem-mcp".into())
     .spawn(move || {

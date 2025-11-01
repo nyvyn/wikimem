@@ -196,13 +196,11 @@ impl MemoryStore {
       let updated_at = file_updated_at(&path);
 
       let title_lower = title.to_lowercase();
-      let mut body_lower = String::new();
-
       let title_match = title_lower.contains(&needle);
       let body_match = if title_match {
         false
       } else {
-        body_lower = body.to_lowercase();
+        let body_lower = body.to_lowercase();
         body_lower.contains(&needle)
       };
 
