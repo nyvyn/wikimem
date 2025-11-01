@@ -1,10 +1,9 @@
 "use client";
 
 import type { JSX } from "react";
-
+import type { MemoryResultsController } from "@/hooks/use-memory-results";
 import type { MemorySummary } from "@/lib/types";
 import { formatTimestamp } from "@/lib/utils";
-import type { MemoryResultsController } from "../../hooks/use-memory-results";
 
 interface MemoryResultsViewProps {
   controller: MemoryResultsController;
