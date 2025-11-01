@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Wiki Mem",
+        "title": "WikiMem",
         "width": 1200,
         "height": 1024,
         "resizable": true,

@@ -2,7 +2,7 @@
 name = "wikimem"
 version = "0.1.0"
 description = "A wiki editor for LLM memories"
-authors = ["you"]
+authors = ["nyvyn"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

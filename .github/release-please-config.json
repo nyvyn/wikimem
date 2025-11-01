@@ -1,0 +1,13 @@
+{
+  "release-type": "node",
+  "tag-template": "wikimem-v${version}",
+  "release-name-template": "WikiMem ${version}",
+  "packages": {
+    ".": {
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [
+        "src-tauri/tauri.conf.json"
+      ]
+    }
+  }
+}

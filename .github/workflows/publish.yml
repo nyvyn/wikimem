@@ -1,9 +1,9 @@
-name: 'publish'
+name: Publish Release
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - 'wikimem-v*'
 
 jobs:
   publish-tauri:
@@ -46,14 +46,14 @@ jobs:
         # You can remove the one that doesn't apply to your app to speed up the workflow a bit.
 
       - name: install frontend dependencies
-        run: yarn install # change this to npm, pnpm or bun depending on which one you use.
+        run: npm install
 
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: app-v__VERSION__ # the action automatically replaces \_\_VERSION\_\_ with the app version.
-          releaseName: 'App v__VERSION__'
+          tagName: wikimem-v__VERSION__ # the action automatically replaces __VERSION__ with the app version.
+          releaseName: 'WikiMem __VERSION__'
           releaseBody: 'See the assets to download this version and install.'
           releaseDraft: true
           prerelease: false
