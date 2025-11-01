@@ -1,8 +1,12 @@
 import type { TextMatchTransformer, Transformer } from "@lexical/markdown";
 import { TRANSFORMERS } from "@lexical/markdown";
 import type { TextNode } from "lexical";
+import {
+  $createMemoryNode,
+  $isMemoryNode,
+  MemoryNode,
+} from "@/components/editor/memory-node";
 import type { MemorySummary } from "@/lib/types";
-import { $createMemoryNode, $isMemoryNode, MemoryNode } from "./memory-node";
 
 function createMemoryLinkTransformer(
   resolveMemorySummary: (id: string) => MemorySummary | undefined,

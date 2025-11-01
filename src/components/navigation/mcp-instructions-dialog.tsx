@@ -30,16 +30,16 @@ export function McpInstructionsDialog({
           MCP instructions
         </button>
       </DialogTrigger>
-      <DialogContent className="max-w-xl border border-white/10 bg-slate-900/95 text-left text-slate-200">
+      <DialogContent className="max-w-xl border border-white/10 bg-white/5 text-left text-slate-100">
         <DialogHeader className="flex flex-row items-center justify-between gap-4 text-left">
           <DialogTitle className="text-lg font-semibold text-white">
             Connect to Wikimem via MCP
           </DialogTitle>
-          <DialogClose className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-slate-200 transition hover:border-white/30 hover:bg-white/10">
+          <DialogClose className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-slate-100 transition hover:border-white/30 hover:bg-white/10">
             Close
           </DialogClose>
         </DialogHeader>
-        <DialogDescription className="text-sm text-slate-300">
+        <DialogDescription className="text-sm text-slate-200">
           Wikimem exposes a Model Context Protocol (MCP) server over STDIO.
           Launching the desktop app from a terminal keeps the stream available
           so MCP-aware tools can connect.

@@ -135,14 +135,6 @@ export class MemoryNode extends TextNode {
   canInsertTextAfter(): boolean {
     return false;
   }
-
-  getMemoryId(): string {
-    return this.__memoryId;
-  }
-
-  getMemoryTitle(): string {
-    return this.__memoryTitle;
-  }
 }
 
 export function $createMemoryNode(

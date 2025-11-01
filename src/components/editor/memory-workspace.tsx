@@ -9,12 +9,11 @@ import {
   useState,
 } from "react";
 import { SlipStackContainer, type SlipStackPaneData } from "slipstack-react";
-
+import { MemoryEditorPane } from "@/components/editor/memory-editor-pane";
+import { MemoryListPanel } from "@/components/navigation/memory-list-panel";
+import { useRecentMemories } from "@/hooks/use-recent-memories";
 import { saveMemory } from "@/lib/tauri-commands";
 import type { MemoryDetail, MemorySummary } from "@/lib/types";
-import { MemoryEditorPane } from "../editor/memory-editor-pane";
-import { MemoryListPanel } from "./memory-list-panel";
-import { useRecentMemories } from "./use-recent-memories";
 
 interface MemoryPaneConfig {
   paneId: string;

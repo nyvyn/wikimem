@@ -3,15 +3,15 @@
 import dynamic from "next/dynamic";
 import { useCallback, useState } from "react";
 
-import { McpInstructionsDialog } from "@/components/memory/mcp-instructions-dialog";
-import { MemoryResultsView } from "@/components/memory/memory-results-view";
-import type { MemoryWorkspaceProps } from "@/components/memory/memory-workspace";
+import type { MemoryWorkspaceProps } from "@/components/editor/memory-workspace";
+import { McpInstructionsDialog } from "@/components/navigation/mcp-instructions-dialog";
+import { MemoryResultsView } from "@/components/navigation/memory-results-view";
 import { useMemoryResults } from "@/hooks/use-memory-results";
 import type { MemorySummary } from "@/lib/types";
 
 const MemoryWorkspace = dynamic<MemoryWorkspaceProps>(
   async () =>
-    import("@/components/memory/memory-workspace").then(
+    import("@/components/editor/memory-workspace").then(
       (mod) => mod.MemoryWorkspace,
     ),
   {
@@ -50,7 +50,7 @@ export default function Home() {
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-slate-950 text-slate-100">
-      <main className="mx-auto flex h-full w-full max-w-6xl flex-1 flex-col gap-10 overflow-hidden px-6 py-12">
+      <main className="mx-auto flex h-full w-full max-w-6xl flex-1 flex-col gap-8 overflow-hidden px-6 py-8 sm:py-12">
         <section className="max-w-2xl space-y-3">
           <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
             wikimem
@@ -64,7 +64,7 @@ export default function Home() {
           </p>
         </section>
 
-        <section className="flex flex-1 flex-col gap-6 overflow-hidden">
+        <section className="flex flex-1 flex-col gap-4 overflow-hidden">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
               <h2 className="text-lg font-semibold text-white">
@@ -95,16 +95,14 @@ export default function Home() {
               <McpInstructionsDialog
                 open={mcpHelpOpen}
                 onOpenChange={setMcpHelpOpen}
-                triggerClassName="rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-white/30 hover:bg-white/10 whitespace-nowrap"
+                triggerClassName="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-white/30 hover:bg-white/10 whitespace-nowrap"
               />
             </div>
           </div>
-          <div className="flex-1 overflow-hidden">
-            <MemoryResultsView
-              controller={resultsController}
-              onOpenMemory={(memory) => openWorkspaceWith(memory)}
-            />
-          </div>
+          <MemoryResultsView
+            controller={resultsController}
+            onOpenMemory={(memory) => openWorkspaceWith(memory)}
+          />
         </section>
       </main>
       <footer className="px-6 pb-8 text-right text-xs text-slate-500 sm:px-12">
