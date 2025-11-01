@@ -11,7 +11,7 @@ import {
   TextNode,
 } from "lexical";
 
-import type { MemorySummary } from "./memory-types";
+import type { MemorySummary } from "@/lib/types";
 
 export type SerializedMemoryNode = Spread<
   {
@@ -134,14 +134,6 @@ export class MemoryNode extends TextNode {
 
   canInsertTextAfter(): boolean {
     return false;
-  }
-
-  getMemoryId(): string {
-    return this.__memoryId;
-  }
-
-  getMemoryTitle(): string {
-    return this.__memoryTitle;
   }
 }
 

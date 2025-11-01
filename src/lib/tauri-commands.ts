@@ -8,8 +8,8 @@ import type {
   MemorySearchResultDto,
   MemorySummary,
   MemorySummaryDto,
-} from "./memory-types";
-import { toDetail, toSearchResult, toSummary } from "./memory-utils";
+} from "./types";
+import { toDetail, toSearchResult, toSummary } from "./utils";
 
 export async function listMemories(): Promise<MemorySummary[]> {
   const dto = await invoke<MemorySummaryDto[]>("list_memories");

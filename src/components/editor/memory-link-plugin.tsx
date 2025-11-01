@@ -8,10 +8,9 @@ import type { TextNode } from "lexical";
 import type { JSX } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-
-import { searchMemories } from "./memory-api";
-import { $createMemoryNode } from "./memory-node";
-import type { MemorySearchResult, MemorySummary } from "./memory-types";
+import { $createMemoryNode } from "@/components/editor/memory-node";
+import { searchMemories } from "@/lib/tauri-commands";
+import type { MemorySearchResult, MemorySummary } from "@/lib/types";
 
 const PUNCTUATION =
   "\\.,\\+\\*\\?\\$\\@\\|#{}\\(\\)\\^\\-\\[\\]\\\\/!%'\"~=<>_:;";

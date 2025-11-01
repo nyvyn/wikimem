@@ -1,45 +1,43 @@
 "use client";
 
 import type { JSX } from "react";
-import type { MemorySummary } from "./memory-types";
-import { formatTimestamp } from "./memory-utils";
+
+import type { MemorySummary } from "@/lib/types";
+import { formatTimestamp } from "@/lib/utils";
 
 interface MemoryListPanelProps {
   loading: boolean;
   error: string | null;
-  summaries: MemorySummary[];
+  recentMemories: MemorySummary[];
   onSelect: (summary: MemorySummary) => void;
   onCreate: () => void;
-  onRefresh: () => void;
+  creating?: boolean;
   className?: string;
 }
 
 const baseCardClass =
   "inline-flex items-center justify-center rounded-full border px-4 py-2 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:opacity-50";
 const primaryButtonClass = `${baseCardClass} border-blue-600 bg-blue-600 text-white hover:bg-blue-500`;
-const secondaryButtonClass = `${baseCardClass} border-slate-200 bg-white hover:border-slate-400`;
 
 export function MemoryListPanel({
   loading,
   error,
-  summaries,
+  recentMemories,
   onSelect,
   onCreate,
-  onRefresh,
+  creating = false,
   className,
 }: MemoryListPanelProps): JSX.Element {
   return (
     <div className={className}>
-      <div className="mb-4 flex items-center gap-3">
-        <button type="button" onClick={onCreate} className={primaryButtonClass}>
-          New memory
-        </button>
+      <div className="mb-4 flex items-center">
         <button
           type="button"
-          onClick={onRefresh}
-          className={secondaryButtonClass}
+          onClick={onCreate}
+          className={primaryButtonClass}
+          disabled={creating}
         >
-          Refresh
+          {creating ? "Creating…" : "New memory"}
         </button>
       </div>
 
@@ -53,13 +51,13 @@ export function MemoryListPanel({
             <p>Something went wrong while loading memories.</p>
             <p className="text-xs text-rose-400">{error}</p>
           </div>
-        ) : summaries.length === 0 ? (
+        ) : recentMemories.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-sm text-slate-500">
             <p>No memories yet.</p>
           </div>
         ) : (
           <ul className="divide-y divide-slate-200 text-sm">
-            {summaries.map((memory) => (
+            {recentMemories.map((memory) => (
               <li key={memory.id}>
                 <button
                   type="button"

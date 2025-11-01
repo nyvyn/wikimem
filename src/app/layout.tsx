@@ -1,6 +1,7 @@
 "use client";
 import localFont from "next/font/local";
 import "@/styles/globals.css";
+import type { ReactNode } from "react";
 
 const geistSans = localFont({
   src: [
@@ -27,7 +28,7 @@ const geistMono = localFont({
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode;
+  children: ReactNode;
 }>) {
   return (
     <html lang="en">
