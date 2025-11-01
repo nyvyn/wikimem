@@ -2,7 +2,7 @@
 
 import type { JSX } from "react";
 import type { MemorySummary } from "@/lib/types";
-import { formatTimestamp } from "../../lib/utils";
+import { formatTimestamp } from "@/lib/utils";
 
 interface MemoryListPanelProps {
   loading: boolean;
