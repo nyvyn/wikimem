@@ -1,3 +1,5 @@
+import { type ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
 import type {
   MemoryDetail,
   MemoryDetailDto,
@@ -5,7 +7,11 @@ import type {
   MemorySearchResultDto,
   MemorySummary,
   MemorySummaryDto,
-} from "./memory-types";
+} from "@/lib/types";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
 
 export function toSummary(dto: MemorySummaryDto): MemorySummary {
   return {

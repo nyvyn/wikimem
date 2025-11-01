@@ -17,7 +17,7 @@ import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPl
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
-import type { EditorState } from "lexical";
+import { $createParagraphNode, $getRoot, type EditorState } from "lexical";
 import {
   type JSX,
   type KeyboardEvent,
@@ -29,12 +29,12 @@ import {
   useState,
 } from "react";
 
-import { loadMemory, saveMemory } from "./memory-api";
+import { loadMemory, saveMemory } from "../../lib/tauri-commands";
+import type { MemoryDetail, MemorySummary } from "../../lib/types";
+import { deriveTitleFromMarkdown } from "../../lib/utils";
 import { MemoryLinkPlugin } from "./memory-link-plugin";
 import { createMemoryMarkdownTransformers } from "./memory-markdown";
 import { MemoryNode } from "./memory-node";
-import type { MemoryDetail, MemorySummary } from "./memory-types";
-import { deriveTitleFromMarkdown } from "./memory-utils";
 
 const editorPaneClass = "flex h-full flex-col bg-white text-slate-900";
 
@@ -57,75 +57,61 @@ const lexicalTheme = {
 
 export interface MemoryEditorPaneProps {
   paneId: string;
-  memoryId?: string;
-  updatePaneTitle: (paneId: string, title: string) => void;
+  memoryId: string;
+  initialDetail?: MemoryDetail;
+  updatePaneTitle: (memoryId: string, title: string) => void;
   onPersist: (detail: MemoryDetail) => void;
-  summaries: MemorySummary[];
+  recentMemories: MemorySummary[];
   onOpenMemory: (memory: MemorySummary) => void;
 }
 
 export function MemoryEditorPane({
   paneId,
   memoryId,
+  initialDetail,
   updatePaneTitle,
   onPersist,
-  summaries,
+  recentMemories,
   onOpenMemory,
 }: MemoryEditorPaneProps): JSX.Element {
-  const [currentMemoryId, setCurrentMemoryId] = useState<string | undefined>(
-    memoryId,
-  );
+  const [currentMemoryId, setCurrentMemoryId] = useState(memoryId);
   const [initialMarkdown, setInitialMarkdown] = useState<string>(
-    currentMemoryId ? "" : "# Untitled memory\n\n",
+    initialDetail?.body ?? "",
   );
-  const [loadVersion, setLoadVersion] = useState(0);
-  const [loading, setLoading] = useState<boolean>(Boolean(memoryId));
+  const [loading, setLoading] = useState<boolean>(!initialDetail);
   const [error, setError] = useState<string | null>(null);
   const derivedTitleRef = useRef<string>(
-    deriveTitleFromMarkdown(initialMarkdown),
-  );
-  const resolveMemorySummary = useCallback(
-    (id: string) => {
-      const trimmedId = id.trim();
-      if (!trimmedId) {
-        return undefined;
-      }
-      if (currentMemoryId && trimmedId === currentMemoryId) {
-        return {
-          id: currentMemoryId,
-          title: derivedTitleRef.current ?? "Untitled memory",
-          updatedAt: Math.floor(Date.now() / 1000),
-        } satisfies MemorySummary;
-      }
-      return summaries.find((summary) => summary.id === trimmedId);
-    },
-    [currentMemoryId, summaries],
+    initialDetail?.title ?? deriveTitleFromMarkdown(initialDetail?.body ?? ""),
   );
 
   useEffect(() => {
-    if (!memoryId) {
+    setCurrentMemoryId(memoryId);
+    if (initialDetail && initialDetail.id === memoryId) {
+      setInitialMarkdown(initialDetail.body);
+      derivedTitleRef.current = initialDetail.title;
+      updatePaneTitle(memoryId, initialDetail.title);
+      setLoading(false);
+      setError(null);
       return;
     }
+
     setLoading(true);
     loadMemory(memoryId)
       .then((detail) => {
         setCurrentMemoryId(detail.id);
         setInitialMarkdown(detail.body);
-        updatePaneTitle(paneId, detail.title);
         derivedTitleRef.current = detail.title;
+        updatePaneTitle(memoryId, detail.title);
         setError(null);
-        setLoadVersion((version) => version + 1);
       })
       .catch((err) => {
         const message = err instanceof Error ? err.message : String(err);
         if (message.toLowerCase().includes("no such file or directory")) {
           const defaultMarkdown = `# ${memoryId}\n\n`;
-          setCurrentMemoryId(memoryId);
           setInitialMarkdown(defaultMarkdown);
           derivedTitleRef.current = deriveTitleFromMarkdown(defaultMarkdown);
-          updatePaneTitle(paneId, derivedTitleRef.current);
+          updatePaneTitle(memoryId, derivedTitleRef.current);
           setError(null);
-          setLoadVersion((version) => version + 1);
           return;
         }
         setError(message);
@@ -133,9 +119,27 @@ export function MemoryEditorPane({
       .finally(() => {
         setLoading(false);
       });
-  }, [memoryId, paneId, updatePaneTitle]);
+  }, [initialDetail, memoryId, updatePaneTitle]);
 
   const editorNamespace = useMemo(() => `memory-editor-${paneId}`, [paneId]);
+
+  const resolveMemorySummary = useCallback(
+    (id: string) => {
+      const trimmedId = id.trim();
+      if (!trimmedId) {
+        return undefined;
+      }
+      if (trimmedId === currentMemoryId) {
+        return {
+          id: currentMemoryId,
+          title: derivedTitleRef.current ?? "Untitled memory",
+          updatedAt: Math.floor(Date.now() / 1000),
+        } satisfies MemorySummary;
+      }
+      return recentMemories.find((summary) => summary.id === trimmedId);
+    },
+    [currentMemoryId, recentMemories],
+  );
 
   const openMemoryFromElement = useCallback(
     (element: HTMLElement) => {
@@ -226,7 +230,6 @@ export function MemoryEditorPane({
         >
           <MarkdownInitPlugin
             markdown={initialMarkdown}
-            version={loadVersion}
             transformers={markdownTransformers}
           />
           <div className="flex h-full flex-col">
@@ -243,8 +246,11 @@ export function MemoryEditorPane({
               placeholder={
                 <div className="pointer-events-none select-none px-6 py-6 text-sm text-slate-400">
                   Start with a <span className="font-semibold"># Title</span>,
-                  followed by context, insight, and references. Everything is
-                  saved automatically after you pause typing.
+                  capture context and insight, and link related memories with{" "}
+                  <code className="rounded bg-slate-200 px-1 py-0.5 text-xs text-slate-700">
+                    [[memory-id]]
+                  </code>
+                  . Everything is saved automatically after you pause typing.
                 </div>
               }
               ErrorBoundary={LexicalErrorBoundary}
@@ -261,7 +267,7 @@ export function MemoryEditorPane({
                   const computedTitle = deriveTitleFromMarkdown(markdown);
                   if (derivedTitleRef.current !== computedTitle) {
                     derivedTitleRef.current = computedTitle;
-                    updatePaneTitle(paneId, computedTitle);
+                    updatePaneTitle(currentMemoryId, computedTitle);
                   }
 
                   saveMemory({
@@ -288,28 +294,31 @@ export function MemoryEditorPane({
 
 function MarkdownInitPlugin({
   markdown,
-  version,
   transformers,
 }: {
   markdown: string;
-  version: number;
   transformers: Transformer[];
 }): null {
   const [editor] = useLexicalComposerContext();
   const initializedRef = useRef(false);
-  const lastVersionRef = useRef<number>(-1);
+  const lastMarkdownRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!initializedRef.current || lastVersionRef.current !== version) {
-      editor.update(() => {
-        if (!markdown) {
-          $convertFromMarkdownString("# Untitled memory\n\n", transformers);
-        } else {
-          $convertFromMarkdownString(markdown, transformers);
-        }
-      });
-      initializedRef.current = true;
-      lastVersionRef.current = version;
+    if (initializedRef.current && lastMarkdownRef.current === markdown) {
+      return;
     }
-  }, [editor, markdown, transformers, version]);
+    editor.update(() => {
+      if (!markdown) {
+        const root = $getRoot();
+        root.clear();
+        const paragraph = $createParagraphNode();
+        root.append(paragraph);
+        paragraph.select();
+      } else {
+        $convertFromMarkdownString(markdown, transformers);
+      }
+    });
+    initializedRef.current = true;
+    lastMarkdownRef.current = markdown;
+  }, [editor, markdown, transformers]);
   return null;
 }

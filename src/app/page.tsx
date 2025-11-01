@@ -4,12 +4,11 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { searchMemories } from "@/components/memory-api";
-import type {
-  MemorySearchResult,
-  MemorySummary,
-} from "@/components/memory-types";
-import type { MemoryWorkspaceProps } from "@/components/memory-workspace";
+import { McpInstructionsDialog } from "@/components/memory/mcp-instructions-dialog";
+import { MemoryResultsView } from "@/components/memory/memory-results-view";
+import type { MemoryWorkspaceProps } from "@/components/memory/memory-workspace";
+import { searchMemories } from "@/lib/tauri-commands";
+import type { MemorySearchResult, MemorySummary } from "@/lib/types";
 
 interface MemorySummaryDto {
   id: string;
@@ -19,7 +18,9 @@ interface MemorySummaryDto {
 
 const MemoryWorkspace = dynamic<MemoryWorkspaceProps>(
   async () =>
-    import("@/components/memory-workspace").then((mod) => mod.MemoryWorkspace),
+    import("@/components/memory/memory-workspace").then(
+      (mod) => mod.MemoryWorkspace,
+    ),
   {
     ssr: false,
     loading: () => (
@@ -30,16 +31,14 @@ const MemoryWorkspace = dynamic<MemoryWorkspaceProps>(
   },
 );
 
-function formatTimestamp(seconds: number): string {
-  return new Date(seconds * 1000).toLocaleString();
-}
-
 export default function Home() {
   const [recentMemories, setRecentMemories] = useState<MemorySummary[]>([]);
   const [memoriesLoading, setMemoriesLoading] = useState(true);
   const [memoriesError, setMemoriesError] = useState<string | null>(null);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
-  const [activeMemory, setActiveMemory] = useState<MemorySummary | null>(null);
+  const [activeMemory, setActiveMemory] = useState<
+    MemorySummary | null | undefined
+  >(undefined);
   const [mcpHelpOpen, setMcpHelpOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -148,7 +147,7 @@ export default function Home() {
 
   const closeWorkspace = useCallback(() => {
     setWorkspaceOpen(false);
-    setActiveMemory(null);
+    setActiveMemory(undefined);
   }, []);
 
   const handleMemoriesChanged = useCallback(() => {
@@ -189,157 +188,37 @@ export default function Home() {
                 />
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex items-center gap-2 sm:flex-nowrap sm:gap-3">
               <button
                 type="button"
                 onClick={() => openWorkspaceWith(null)}
-                className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:border-white/40 hover:bg-white/20"
+                className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:border-white/40 hover:bg-white/20 whitespace-nowrap"
               >
                 New memory
               </button>
-              <button
-                type="button"
-                onClick={() => fetchMemories().catch(() => {})}
-                className="rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-white/30 hover:bg-white/10"
-                disabled={memoriesLoading}
-              >
-                Refresh
-              </button>
-              <button
-                type="button"
-                onClick={() => setMcpHelpOpen(true)}
-                className="rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-white/30 hover:bg-white/10"
-              >
-                MCP instructions
-              </button>
+              <McpInstructionsDialog
+                open={mcpHelpOpen}
+                onOpenChange={setMcpHelpOpen}
+                triggerClassName="rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-white/30 hover:bg-white/10 whitespace-nowrap"
+              />
             </div>
           </div>
-          {inSearchMode ? (
-            searchLoading ? (
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-sm text-slate-400">
-                Searching memories…
-              </div>
-            ) : searchError ? (
-              <div className="rounded-3xl border border-rose-400/40 bg-rose-500/10 p-6 text-sm text-rose-200">
-                {searchError}
-              </div>
-            ) : searchResults.length === 0 ? (
-              <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-slate-400">
-                No matches found for &ldquo;{debouncedQuery.trim()}&rdquo;.
-              </div>
-            ) : (
-              <ul className="grid gap-3 sm:grid-cols-2">
-                {searchResults.map((memory) => (
-                  <li key={memory.id}>
-                    <button
-                      type="button"
-                      onClick={() => openWorkspaceWith(memory)}
-                      className="group flex w-full flex-col gap-2 rounded-3xl border border-white/10 bg-white/5 p-4 text-left transition hover:border-white/30 hover:bg-white/10"
-                    >
-                      <span className="text-base font-medium text-white group-hover:text-slate-100">
-                        {memory.title}
-                      </span>
-                      <p className="text-xs text-slate-400">{memory.snippet}</p>
-                      <span className="text-xs text-slate-500">
-                        Updated {formatTimestamp(memory.updatedAt)}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )
-          ) : memoriesLoading ? (
-            <div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-sm text-slate-400">
-              Loading memories…
-            </div>
-          ) : memoriesError ? (
-            <div className="rounded-3xl border border-rose-400/40 bg-rose-500/10 p-6 text-sm text-rose-200">
-              {memoriesError}
-            </div>
-          ) : sortedMemories.length === 0 ? (
-            <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-slate-400">
-              No memories yet. Capture a new one to start your wiki.
-            </div>
-          ) : (
-            <ul className="grid gap-3 sm:grid-cols-2">
-              {sortedMemories.map((memory) => (
-                <li key={memory.id}>
-                  <button
-                    type="button"
-                    onClick={() => openWorkspaceWith(memory)}
-                    className="group flex w-full flex-col gap-2 rounded-3xl border border-white/10 bg-white/5 p-4 text-left transition hover:border-white/30 hover:bg-white/10"
-                  >
-                    <span className="text-base font-medium text-white group-hover:text-slate-100">
-                      {memory.title}
-                    </span>
-                    <span className="text-xs text-slate-400">
-                      Updated {formatTimestamp(memory.updatedAt)}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+          <MemoryResultsView
+            inSearchMode={inSearchMode}
+            searchLoading={searchLoading}
+            searchError={searchError}
+            searchResults={searchResults}
+            debouncedQuery={debouncedQuery}
+            memoriesLoading={memoriesLoading}
+            memoriesError={memoriesError}
+            sortedMemories={sortedMemories}
+            onOpenMemory={(memory) => openWorkspaceWith(memory)}
+          />
         </section>
       </main>
       <footer className="px-6 pb-8 text-right text-xs text-slate-500 sm:px-12">
         Designed by Ron Lancaster
       </footer>
-
-      {mcpHelpOpen ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/80 px-4 py-6">
-          <div className="max-w-xl rounded-3xl border border-white/10 bg-slate-900/95 p-6 text-left shadow-2xl">
-            <div className="mb-4 flex items-center justify-between gap-4">
-              <h3 className="text-lg font-semibold text-white">
-                Connect to Wikimem via MCP
-              </h3>
-              <button
-                type="button"
-                onClick={() => setMcpHelpOpen(false)}
-                className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-slate-200 transition hover:border-white/30 hover:bg-white/10"
-              >
-                Close
-              </button>
-            </div>
-            <p className="mb-4 text-sm text-slate-300">
-              Wikimem exposes a Model Context Protocol (MCP) server over STDIO.
-              Launching the desktop app from a terminal makes the stream
-              available so MCP-aware tools can connect.
-            </p>
-            <ol className="mb-4 list-decimal space-y-2 pl-5 text-sm text-slate-200">
-              <li>
-                Build or run the app once so the binary is available:
-                <code className="ml-2 rounded bg-slate-800 px-2 py-1 text-xs">
-                  npm run tauri dev
-                </code>
-              </li>
-              <li>
-                In another terminal, start an MCP client pointing at the binary.
-                For example, using the MCP CLI from this project root:
-                <pre className="mt-2 rounded-2xl border border-white/10 bg-slate-950/80 p-3 text-xs text-slate-100">
-                  {`npx @modelcontextprotocol/cli@latest connect stdio \\
-  --command "./src-tauri/target/debug/wikimem"`}
-                </pre>
-                Adjust the path for release builds or your OS (e.g.{" "}
-                <code className="rounded bg-slate-800 px-2 py-1 text-xs">
-                  wikimem.app/Contents/MacOS/wikimem
-                </code>{" "}
-                on macOS).
-              </li>
-              <li>
-                The client now has access to the <code>list_memories</code>,{" "}
-                <code>create_memory</code>, <code>update_memory</code>,{" "}
-                <code>delete_memory</code>, and <code>search_memories</code>{" "}
-                tools. Changes sync with the UI instantly.
-              </li>
-            </ol>
-            <p className="text-xs text-slate-400">
-              Tip: leave the terminal session open while agents are connected so
-              STDIO stays attached.
-            </p>
-          </div>
-        </div>
-      ) : null}
 
       {workspaceOpen ? (
         <div className="fixed inset-0 z-50 bg-slate-950">
@@ -353,7 +232,9 @@ export default function Home() {
           <div className="h-full w-full">
             <MemoryWorkspace
               key={activeMemory?.id ?? "new"}
-              initialMemory={activeMemory ?? undefined}
+              initialMemory={
+                activeMemory === undefined ? undefined : activeMemory
+              }
               onMemoriesChanged={handleMemoriesChanged}
               variant="full"
             />

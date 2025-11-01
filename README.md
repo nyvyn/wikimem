@@ -1,12 +1,9 @@
-# Wikimem – SlipStack Notebook For Memories
+# Wikimem
 
-Wikimem is a Tauri-powered desktop app that curates an AI-managed notebook of
-memories. Every memory lives as an individual Markdown file and can be created,
-edited, or deleted through both the SlipStack React UI and an MCP (Model Context
-Protocol) server.
+Wikimem is a Tauri-powered desktop app that offers memory for AI (e.g. Claude, Codex, etc.).
 
-The goal is to give AI agents a durable, wiki-style surface for storing
-context—while keeping a fast, tactile editing experience for humans.
+It exposes an MCP server for AI agents to read and write memories as Markdown,
+which can then be viewed and edited in a wiki-style interface.
 
 ## Vision
 
@@ -63,6 +60,30 @@ context—while keeping a fast, tactile editing experience for humans.
 The desktop app also exposes an MCP server over stdio in the same process, so
 any MCP-compatible agent can connect without launching a separate binary.
 
+### Connect an LLM via MCP
+
+If you're already running the Wikimem desktop app, point your LLM's MCP config
+at the installed binary using stdio transport. For example, `claude_desktop_config.json`
+might include:
+
+```json
+{
+  "mcpServers": {
+    "wikimem": {
+      "transport": {
+        "type": "stdio",
+        "command": "/Applications/Wikimem.app/Contents/MacOS/Wikimem"
+      }
+    }
+  }
+}
+```
+
+Adjust the `command` path for your platform—e.g. `./src-tauri/target/debug/wikimem`
+while developing, or `C:\\Users\\<you>\\AppData\\Local\\Programs\\Wikimem\\wikimem.exe`
+on Windows. When the LLM launches, it will spawn Wikimem with MCP enabled and
+stream the stdio connection to the app.
+
 ### Directory Layout
 
 - `src-tauri/` – Rust backend, Tauri commands, soon the MCP server.
@@ -76,7 +97,7 @@ any MCP-compatible agent can connect without launching a separate binary.
 - [x] Add Tauri command layer for memory CRUD operations.
 - [x] Expose MCP server endpoints backed by the same storage layer.
 - [x] Synchronize AI agent actions with SlipStack navigation state.
-- [ ] Build Lexical-powered Markdown editor surface tied to those commands.
+- [x] Build Lexical-powered Markdown editor surface tied to those commands.
 
 Contributions and experiments are welcome—this project is evolving rapidly as
 the notebook workflow takes shape.

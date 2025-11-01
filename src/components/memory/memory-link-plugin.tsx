@@ -9,9 +9,9 @@ import type { JSX } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { searchMemories } from "./memory-api";
+import { searchMemories } from "../../lib/tauri-commands";
+import type { MemorySearchResult, MemorySummary } from "../../lib/types";
 import { $createMemoryNode } from "./memory-node";
-import type { MemorySearchResult, MemorySummary } from "./memory-types";
 
 const PUNCTUATION =
   "\\.,\\+\\*\\?\\$\\@\\|#{}\\(\\)\\^\\-\\[\\]\\\\/!%'\"~=<>_:;";
