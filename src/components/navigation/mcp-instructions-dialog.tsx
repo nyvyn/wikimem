@@ -38,42 +38,47 @@ export function McpInstructionsDialog({
           <DialogClose />
         </DialogHeader>
         <DialogDescription className="text-sm text-slate-200">
-          Wikimem exposes a Model Context Protocol (MCP) server over STDIO. Add
-          the app as a stdio endpoint to your LLM so agents can read and write
-          memories.
+          Wikimem exposes a Model Context Protocol (MCP) server over streamable
+          HTTP. Launch the desktop app first, then point your LLM to the local
+          endpoint so agents can read and write memories.
         </DialogDescription>
         <ol className="list-decimal space-y-2 pl-5 text-sm text-slate-200">
           <li>
-            Add Wikimem to your LLM&apos;s MCP configuration using stdio
+            Add Wikimem to your LLM&apos;s MCP configuration using the
+            <code className="mx-1 rounded bg-slate-800 px-1 py-0.5 text-xs">
+              streamable_http
+            </code>
             transport. For example:
             <pre className="mt-2 rounded-2xl border border-white/10 bg-slate-950/80 p-3 text-xs text-slate-100">
               {`{
   "mcpServers": {
     "wikimem": {
       "transport": {
-        "type": "stdio",
-        "command": "/Applications/Wikimem.app/Contents/MacOS/Wikimem"
+        "type": "streamable_http",
+        "url": "http://127.0.0.1:3926/mcp"
       }
     }
   }
 }`}
             </pre>
-            Point the `command` at your installed binary, such as
+            Ensure the desktop app is running so the local server responds on
             <code className="ml-2 rounded bg-slate-800 px-2 py-1 text-xs">
-              ./src-tauri/target/debug/wikimem
+              http://127.0.0.1:3926
             </code>
-            during development or the packaged app on Windows/macOS.
+            . Adjust the host if you&apos;re connecting from another machine.
           </li>
           <li>
-            Restart or reload the LLM. Once connected it can call
-            <code> list_memories</code>, <code>create_memory</code>,
-            <code> update_memory</code>, <code>delete_memory</code>, and
-            <code> search_memories</code>. Changes sync with the UI instantly.
+            Restart or reload the LLM. Once connected it can call the tools
+            <code> list_memories</code>, <code>load_memory</code>,
+            <code> save_memory</code>, <code> delete_memory</code>, and
+            <code> search_memories</code> to manage your wiki. The protocol-level
+            <code>ping</code> method also returns a console log with <code>pong</code>{" "}
+            so you can confirm the link.
           </li>
         </ol>
         <p className="text-xs text-slate-400">
-          Tip: leave the terminal session open while agents stay connected so
-          STDIO remains attached.
+          Tip: keep the desktop app open so the HTTP server remains available
+          while agents are connected.
         </p>
       </DialogContent>
     </Dialog>

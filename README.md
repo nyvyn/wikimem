@@ -57,32 +57,43 @@ which can then be viewed and edited in a wiki-style interface.
 3. Add memories by using the **New Memory** action in the UI (coming online as
    part of the incremental build-out).
 
-The desktop app also exposes an MCP server over stdio in the same process, so
+The desktop app also exposes an MCP server over HTTP in the same process, so
 any MCP-compatible agent can connect without launching a separate binary.
 
 ### Connect an LLM via MCP
 
 If you're already running the Wikimem desktop app, point your LLM's MCP config
-at the installed binary using stdio transport. For example, `claude_desktop_config.json`
-might include:
+at the local streamable HTTP endpoint. For example,
+`claude_desktop_config.json` might include:
 
 ```json
 {
   "mcpServers": {
     "wikimem": {
       "transport": {
-        "type": "stdio",
-        "command": "/Applications/Wikimem.app/Contents/MacOS/Wikimem"
+        "type": "streamable_http",
+        "url": "http://127.0.0.1:3926/mcp"
       }
     }
   }
 }
 ```
 
-Adjust the `command` path for your platform—e.g. `./src-tauri/target/debug/wikimem`
-while developing, or `C:\\Users\\<you>\\AppData\\Local\\Programs\\Wikimem\\wikimem.exe`
-on Windows. When the LLM launches, it will spawn Wikimem with MCP enabled and
-stream the stdio connection to the app.
+Ensure the desktop app is running so the `/mcp` endpoint responds on
+`http://127.0.0.1:3926`. If you're connecting from another device, replace the
+host with the machine's LAN address. When the LLM launches, it will stream MCP
+messages over the same HTTP connection.
+
+Available MCP tools include:
+
+- `list_memories`
+- `load_memory`
+- `save_memory`
+- `delete_memory`
+- `search_memories`
+
+The protocol-level `ping` method is also supported. It emits a `pong` logging
+notification so you can quickly verify connectivity.
 
 ### Directory Layout
 

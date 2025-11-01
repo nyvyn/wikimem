@@ -1,45 +1,185 @@
-use std::{sync::Arc, thread};
+use std::{net::SocketAddr, sync::Arc, thread};
 
 use anyhow::{anyhow, Context, Result};
-use modelcontextprotocol_server::{
-  mcp_protocol::types::tool::{ToolCallResult, ToolContent},
-  transport::StdioTransport,
-  Server, ServerBuilder,
+use axum::Router;
+use rmcp::schemars;
+use rmcp::{
+  handler::server::router::tool::ToolRouter,
+  handler::server::wrapper::Parameters,
+  handler::server::ServerHandler,
+  model::{
+    CallToolResult, LoggingLevel, LoggingMessageNotificationParam, ServerCapabilities, ServerInfo,
+  },
+  service::{RequestContext, RoleServer},
+  tool, tool_handler, tool_router,
+  transport::streamable_http_server::{
+    session::local::LocalSessionManager,
+    tower::{StreamableHttpServerConfig, StreamableHttpService},
+  },
+  ErrorData as McpError,
 };
+use schemars::JsonSchema;
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::json;
 use tauri::{AppHandle, Emitter};
+use tokio::net::TcpListener;
 
-use crate::{MemoryChangedPayload, MemoryStore, SaveMemoryPayload, MEMORIES_CHANGED_EVENT};
+use crate::{
+  MemoryChangedPayload, MemoryDetail, MemorySearchResult, MemoryStore, MemorySummary,
+  SaveMemoryPayload, MEMORIES_CHANGED_EVENT,
+};
 
-const SERVER_NAME: &str = "wikimem";
+const MCP_HTTP_ADDR: &str = "127.0.0.1:3926";
 
-#[derive(Deserialize)]
-struct CreateMemoryArgs {
+#[derive(Clone)]
+struct WikimemServer {
+  store: Arc<MemoryStore>,
+  app_handle: AppHandle,
+  tool_router: ToolRouter<Self>,
+}
+
+impl WikimemServer {
+  fn new(store: Arc<MemoryStore>, app_handle: AppHandle) -> Self {
+    Self {
+      store,
+      app_handle,
+      tool_router: Self::tool_router(),
+    }
+  }
+
+  fn map_store_error(message: String) -> McpError {
+    McpError::internal_error(message, None)
+  }
+
+  fn emit_change(&self, payload: MemoryChangedPayload) {
+    if let Err(err) = self.app_handle.emit(MEMORIES_CHANGED_EVENT, payload) {
+      eprintln!("Failed to emit memory change event: {err}");
+    }
+  }
+}
+
+#[tool_router]
+impl WikimemServer {
+  #[tool(description = "Return summaries of all stored memories ordered by recency.")]
+  fn list_memories(&self) -> Result<CallToolResult, McpError> {
+    let summaries: Vec<MemorySummary> = self.store.list().map_err(Self::map_store_error)?;
+    Ok(CallToolResult::structured(json!({ "memories": summaries })))
+  }
+
+  #[tool(description = "Load a memory by id, returning the full markdown body.")]
+  fn load_memory(
+    &self,
+    Parameters(args): Parameters<LoadMemoryArgs>,
+  ) -> Result<CallToolResult, McpError> {
+    let detail: MemoryDetail = self.store.load(&args.id).map_err(Self::map_store_error)?;
+    Ok(CallToolResult::structured(json!(detail)))
+  }
+
+  #[tool(
+    description = "Create or update a memory using the provided title and markdown body. Use wiki links like [[memory_id]] to reference other memories."
+  )]
+  async fn save_memory(
+    &self,
+    Parameters(args): Parameters<SaveMemoryArgs>,
+  ) -> Result<CallToolResult, McpError> {
+    let detail = self
+      .store
+      .save(SaveMemoryPayload {
+        id: args.id.clone(),
+        title: args.title,
+        body: args.body,
+      })
+      .map_err(Self::map_store_error)?;
+
+    self.emit_change(MemoryChangedPayload::saved(detail.id.clone()));
+
+    Ok(CallToolResult::structured(json!(detail)))
+  }
+
+  #[tool(description = "Delete a memory by id.")]
+  async fn delete_memory(
+    &self,
+    Parameters(args): Parameters<DeleteMemoryArgs>,
+  ) -> Result<CallToolResult, McpError> {
+    self.store.delete(&args.id).map_err(Self::map_store_error)?;
+
+    self.emit_change(MemoryChangedPayload::deleted(args.id.clone()));
+
+    Ok(CallToolResult::structured(json!({
+      "status": "deleted",
+      "id": args.id,
+    })))
+  }
+
+  #[tool(description = "Search memories by keyword across titles and body content.")]
+  fn search_memories(
+    &self,
+    Parameters(args): Parameters<SearchMemoriesArgs>,
+  ) -> Result<CallToolResult, McpError> {
+    let results: Vec<MemorySearchResult> = self
+      .store
+      .search(&args.query)
+      .map_err(Self::map_store_error)?;
+    Ok(CallToolResult::structured(json!({ "results": results })))
+  }
+}
+
+#[tool_handler]
+impl ServerHandler for WikimemServer {
+  fn get_info(&self) -> ServerInfo {
+    ServerInfo {
+      instructions: Some(
+        "Wikimem exposes memory CRUD tools (`list_memories`, `load_memory`, `save_memory`, `delete_memory`, `search_memories`) and responds to the MCP `ping` method. Use `save_memory` to write Markdown: linking to another memory can be done with wiki-style syntax like [[memory_id]].".into(),
+      ),
+      capabilities: ServerCapabilities::builder().enable_tools().build(),
+      ..Default::default()
+    }
+  }
+
+  fn ping(
+    &self,
+    context: RequestContext<RoleServer>,
+  ) -> impl std::future::Future<Output = Result<(), McpError>> + Send + '_ {
+    async move {
+      if let Err(err) = context
+        .peer
+        .notify_logging_message(LoggingMessageNotificationParam {
+          level: LoggingLevel::Info,
+          logger: Some("wikimem".into()),
+          data: json!({ "message": "pong" }),
+        })
+        .await
+      {
+        eprintln!("Failed to send MCP log notification: {err}");
+      }
+      Ok(())
+    }
+  }
+}
+
+#[derive(Deserialize, JsonSchema)]
+struct LoadMemoryArgs {
+  id: String,
+}
+
+#[derive(Deserialize, JsonSchema)]
+struct SaveMemoryArgs {
+  id: Option<String>,
   title: String,
   body: String,
 }
 
-#[derive(Deserialize)]
-struct UpdateMemoryArgs {
-  id: String,
-  title: Option<String>,
-  body: Option<String>,
-}
-
-#[derive(Deserialize)]
+#[derive(Deserialize, JsonSchema)]
 struct DeleteMemoryArgs {
   id: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, JsonSchema)]
 struct SearchMemoriesArgs {
   query: String,
 }
 
-pub(crate) fn spawn_mcp_stdio_server(app_handle: AppHandle) {
-  let handle = app_handle.clone();
-
+pub(crate) fn spawn_mcp_http_server(app_handle: AppHandle) {
   #[allow(let_underscore_drop)]
   let _ = thread::Builder::new()
     .name("wikimem-mcp".into())
@@ -55,234 +195,42 @@ pub(crate) fn spawn_mcp_stdio_server(app_handle: AppHandle) {
         }
       };
 
-      if let Err(err) = runtime.block_on(run_mcp_stdio_server(handle.clone())) {
-        eprintln!("MCP stdio server exited with error: {err:?}");
+      if let Err(err) = runtime.block_on(run_mcp_http_server(app_handle)) {
+        eprintln!("MCP HTTP server exited with error: {err:?}");
       }
     });
 }
 
-async fn run_mcp_stdio_server(app_handle: AppHandle) -> Result<()> {
-  build_mcp_stdio_server(&app_handle)?.run().await
-}
+async fn run_mcp_http_server(app_handle: AppHandle) -> Result<()> {
+  let addr: SocketAddr = MCP_HTTP_ADDR
+    .parse()
+    .context("Invalid MCP HTTP bind address")?;
 
-fn build_mcp_stdio_server(app_handle: &AppHandle) -> Result<Server> {
   let store = Arc::new(
     MemoryStore::from_config(app_handle.config())
       .map_err(|err| anyhow!("Failed to initialise memory store: {err}"))?,
   );
 
-  let app_handle = Arc::new(app_handle.clone());
+  let server = WikimemServer::new(store, app_handle.clone());
 
-  let mut builder = ServerBuilder::new(SERVER_NAME, env!("CARGO_PKG_VERSION"))
-    .with_transport(StdioTransport::new());
+  let service: StreamableHttpService<WikimemServer, LocalSessionManager> =
+    StreamableHttpService::new(
+      move || Ok(server.clone()),
+      LocalSessionManager::default().into(),
+      StreamableHttpServerConfig::default(),
+    );
 
-  builder = register_list_tool(builder, &store);
-  builder = register_create_tool(builder, &store, &app_handle);
-  builder = register_update_tool(builder, &store, &app_handle);
-  builder = register_delete_tool(builder, &store, &app_handle);
-  builder = register_search_tool(builder, &store);
+  let router = Router::new().nest_service("/mcp", service);
 
-  builder.build()
-}
+  let listener = TcpListener::bind(addr)
+    .await
+    .with_context(|| format!("Failed to bind MCP HTTP server to {addr}"))?;
 
-fn register_list_tool(builder: ServerBuilder, store: &Arc<MemoryStore>) -> ServerBuilder {
-  let store = Arc::clone(store);
-  builder.with_tool(
-    "list_memories",
-    Some("Return the summaries of all stored memories ordered by recency."),
-    json!({
-      "type": "object",
-      "properties": {},
-      "additionalProperties": false
-    }),
-    move |_args: Value| {
-      let summaries = store
-        .list()
-        .map_err(|err| anyhow!("Failed to list memories: {err}"))?;
-      let as_json =
-        serde_json::to_string(&summaries).context("Failed to serialise memory summaries")?;
-      Ok(ToolCallResult {
-        content: vec![ToolContent::Text { text: as_json }],
-        is_error: None,
-      })
-    },
-  )
-}
+  println!("MCP HTTP server listening on http://{addr}/mcp using rmcp streamable HTTP transport");
 
-fn register_create_tool(
-  builder: ServerBuilder,
-  store: &Arc<MemoryStore>,
-  app_handle: &Arc<AppHandle>,
-) -> ServerBuilder {
-  let store = Arc::clone(store);
-  let app_handle = Arc::clone(app_handle);
-  builder.with_tool(
-    "create_memory",
-    Some("Create a new memory using the provided title and markdown body."),
-    json!({
-      "type": "object",
-      "properties": {
-        "title": {
-          "type": "string",
-          "description": "Title for the memory."
-        },
-        "body": {
-          "type": "string",
-          "description": "Markdown content for the memory."
-        }
-      },
-      "required": ["title", "body"],
-      "additionalProperties": false
-    }),
-    move |args: Value| {
-      let params: CreateMemoryArgs =
-        serde_json::from_value(args).context("Invalid arguments for create_memory")?;
-      let detail = store
-        .save(SaveMemoryPayload {
-          id: None,
-          title: params.title,
-          body: params.body,
-        })
-        .map_err(|err| anyhow!("Failed to create memory: {err}"))?;
-      let as_json = serde_json::to_string(&detail).context("Failed to serialise created memory")?;
-      let _ = app_handle.emit(
-        MEMORIES_CHANGED_EVENT,
-        MemoryChangedPayload::saved(detail.id.clone()),
-      );
-      Ok(ToolCallResult {
-        content: vec![ToolContent::Text { text: as_json }],
-        is_error: None,
-      })
-    },
-  )
-}
+  axum::serve(listener, router)
+    .await
+    .context("MCP HTTP server stopped unexpectedly")?;
 
-fn register_update_tool(
-  builder: ServerBuilder,
-  store: &Arc<MemoryStore>,
-  app_handle: &Arc<AppHandle>,
-) -> ServerBuilder {
-  let store = Arc::clone(store);
-  let app_handle = Arc::clone(app_handle);
-  builder.with_tool(
-    "update_memory",
-    Some("Update an existing memory by id, optionally changing the title and/or body."),
-    json!({
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Identifier of the memory to update."
-        },
-        "title": {
-          "type": "string",
-          "description": "New title for the memory. Omit to keep the existing title."
-        },
-        "body": {
-          "type": "string",
-          "description": "New markdown body. Omit to keep the existing content."
-        }
-      },
-      "required": ["id"],
-      "additionalProperties": false
-    }),
-    move |args: Value| {
-      let params: UpdateMemoryArgs =
-        serde_json::from_value(args).context("Invalid arguments for update_memory")?;
-      let existing = store
-        .load(&params.id)
-        .map_err(|err| anyhow!("Failed to load memory: {err}"))?;
-      let replacement_title = params.title.unwrap_or(existing.title);
-      let replacement_body = params.body.unwrap_or(existing.body);
-      let detail = store
-        .save(SaveMemoryPayload {
-          id: Some(params.id),
-          title: replacement_title,
-          body: replacement_body,
-        })
-        .map_err(|err| anyhow!("Failed to update memory: {err}"))?;
-      let as_json = serde_json::to_string(&detail).context("Failed to serialise updated memory")?;
-      let _ = app_handle.emit(
-        MEMORIES_CHANGED_EVENT,
-        MemoryChangedPayload::saved(detail.id.clone()),
-      );
-      Ok(ToolCallResult {
-        content: vec![ToolContent::Text { text: as_json }],
-        is_error: None,
-      })
-    },
-  )
-}
-
-fn register_delete_tool(
-  builder: ServerBuilder,
-  store: &Arc<MemoryStore>,
-  app_handle: &Arc<AppHandle>,
-) -> ServerBuilder {
-  let store = Arc::clone(store);
-  let app_handle = Arc::clone(app_handle);
-  builder.with_tool(
-    "delete_memory",
-    Some("Delete a memory by id."),
-    json!({
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Identifier of the memory to delete."
-        }
-      },
-      "required": ["id"],
-      "additionalProperties": false
-    }),
-    move |args: Value| {
-      let params: DeleteMemoryArgs =
-        serde_json::from_value(args).context("Invalid arguments for delete_memory")?;
-      store
-        .delete(&params.id)
-        .map_err(|err| anyhow!("Failed to delete memory: {err}"))?;
-      let _ = app_handle.emit(
-        MEMORIES_CHANGED_EVENT,
-        MemoryChangedPayload::deleted(params.id.clone()),
-      );
-      Ok(ToolCallResult {
-        content: vec![ToolContent::Text {
-          text: format!("Deleted memory {}", params.id),
-        }],
-        is_error: None,
-      })
-    },
-  )
-}
-
-fn register_search_tool(builder: ServerBuilder, store: &Arc<MemoryStore>) -> ServerBuilder {
-  let store = Arc::clone(store);
-  builder.with_tool(
-    "search_memories",
-    Some("Search memories by keyword across titles and body content."),
-    json!({
-      "type": "object",
-      "properties": {
-        "query": {
-          "type": "string",
-          "description": "Search text to match against titles and content."
-        }
-      },
-      "required": ["query"],
-      "additionalProperties": false
-    }),
-    move |args: Value| {
-      let params: SearchMemoriesArgs =
-        serde_json::from_value(args).context("Invalid arguments for search_memories")?;
-      let results = store
-        .search(&params.query)
-        .map_err(|err| anyhow!("Failed to search memories: {err}"))?;
-      let as_json =
-        serde_json::to_string(&results).context("Failed to serialise search results")?;
-      Ok(ToolCallResult {
-        content: vec![ToolContent::Text { text: as_json }],
-        is_error: None,
-      })
-    },
-  )
+  Ok(())
 }
