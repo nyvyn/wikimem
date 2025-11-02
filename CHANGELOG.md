@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.3](https://github.com/nyvyn/wikimem/compare/wikimem-v0.3.2...wikimem-v0.3.3) (2025-11-02)
+
+
+### Bug Fixes
+
+* update publish workflow to trigger on tag pushes and rename release job ([#23](https://github.com/nyvyn/wikimem/issues/23)) ([b292302](https://github.com/nyvyn/wikimem/commit/b2923023bb8d088b0299d2d431f8377935d7ba7a))
+
 ## [0.3.2](https://github.com/nyvyn/wikimem/compare/wikimem-v0.3.1...wikimem-v0.3.2) (2025-11-02)
 
 
