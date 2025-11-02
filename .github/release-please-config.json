@@ -4,6 +4,7 @@
   "release-name-template": "WikiMem ${version}",
   "packages": {
     ".": {
+      "component": "wikimem",
       "changelog-path": "CHANGELOG.md",
       "extra-files": [
         "src-tauri/tauri.conf.json"
