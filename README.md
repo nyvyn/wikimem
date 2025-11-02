@@ -63,7 +63,7 @@ any MCP-compatible agent can connect without launching a separate binary.
 ### Connect an LLM via MCP
 
 If you're already running the Wikimem desktop app, point your LLM's MCP config
-at the local streamable HTTP endpoint. For example,
+at the local HTTP endpoint. For example,
 `claude_desktop_config.json` might include:
 
 ```json
@@ -71,7 +71,7 @@ at the local streamable HTTP endpoint. For example,
   "mcpServers": {
     "wikimem": {
       "transport": {
-        "type": "streamable_http",
+        "type": "http",
         "url": "http://127.0.0.1:3926/mcp"
       }
     }
