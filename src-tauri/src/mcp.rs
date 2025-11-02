@@ -32,13 +32,13 @@ use crate::{
 const MCP_HTTP_ADDR: &str = "127.0.0.1:3926";
 
 #[derive(Clone)]
-struct WikimemServer {
+struct WikiMemServer {
   store: Arc<MemoryStore>,
   app_handle: AppHandle,
   tool_router: ToolRouter<Self>,
 }
 
-impl WikimemServer {
+impl WikiMemServer {
   fn new(store: Arc<MemoryStore>, app_handle: AppHandle) -> Self {
     Self {
       store,
@@ -59,7 +59,7 @@ impl WikimemServer {
 }
 
 #[tool_router]
-impl WikimemServer {
+impl WikiMemServer {
   #[tool(description = "Return summaries of all stored memories ordered by recency.")]
   fn list_memories(&self) -> Result<CallToolResult, McpError> {
     let summaries: Vec<MemorySummary> = self.store.list().map_err(Self::map_store_error)?;
@@ -125,34 +125,29 @@ impl WikimemServer {
 }
 
 #[tool_handler]
-impl ServerHandler for WikimemServer {
+impl ServerHandler for WikiMemServer {
+  async fn ping(&self, context: RequestContext<RoleServer>) -> Result<(), McpError> {
+    if let Err(err) = context
+      .peer
+      .notify_logging_message(LoggingMessageNotificationParam {
+        level: LoggingLevel::Info,
+        logger: Some("wikimem".into()),
+        data: json!({ "message": "pong" }),
+      })
+      .await
+    {
+      eprintln!("Failed to send MCP log notification: {err}");
+    }
+    Ok(())
+  }
+
   fn get_info(&self) -> ServerInfo {
     ServerInfo {
       instructions: Some(
-        "Wikimem exposes memory CRUD tools (`list_memories`, `load_memory`, `save_memory`, `delete_memory`, `search_memories`) and responds to the MCP `ping` method. Use `save_memory` to write Markdown: linking to another memory can be done with wiki-style syntax like [[memory_id]].".into(),
+        "WikiMem exposes memory CRUD tools (`list_memories`, `load_memory`, `save_memory`, `delete_memory`, `search_memories`) and responds to the MCP `ping` method. Use `save_memory` to write Markdown: linking to another memory can be done with wiki-style syntax like [[memory_id]].".into(),
       ),
       capabilities: ServerCapabilities::builder().enable_tools().build(),
       ..Default::default()
-    }
-  }
-
-  fn ping(
-    &self,
-    context: RequestContext<RoleServer>,
-  ) -> impl std::future::Future<Output = Result<(), McpError>> + Send + '_ {
-    async move {
-      if let Err(err) = context
-        .peer
-        .notify_logging_message(LoggingMessageNotificationParam {
-          level: LoggingLevel::Info,
-          logger: Some("wikimem".into()),
-          data: json!({ "message": "pong" }),
-        })
-        .await
-      {
-        eprintln!("Failed to send MCP log notification: {err}");
-      }
-      Ok(())
     }
   }
 }
@@ -211,13 +206,16 @@ async fn run_mcp_http_server(app_handle: AppHandle) -> Result<()> {
       .map_err(|err| anyhow!("Failed to initialise memory store: {err}"))?,
   );
 
-  let server = WikimemServer::new(store, app_handle.clone());
+  let server = WikiMemServer::new(store, app_handle.clone());
 
-  let service: StreamableHttpService<WikimemServer, LocalSessionManager> =
+  let service: StreamableHttpService<WikiMemServer, LocalSessionManager> =
     StreamableHttpService::new(
       move || Ok(server.clone()),
       LocalSessionManager::default().into(),
-      StreamableHttpServerConfig::default(),
+      StreamableHttpServerConfig {
+        stateful_mode: false,
+        ..Default::default()
+      },
     );
 
   let router = Router::new().nest_service("/mcp", service);

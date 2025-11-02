@@ -1,6 +1,6 @@
-# Wikimem
+# WikiMem
 
-Wikimem is a Tauri-powered desktop app that offers memory for AI (e.g. Claude, Codex, etc.).
+WikiMem is a Tauri-powered desktop app that offers memory for AI (e.g. Claude, Codex, etc.).
 
 It exposes an MCP server for AI agents to read and write memories as Markdown,
 which can then be viewed and edited in a wiki-style interface.
@@ -62,7 +62,7 @@ any MCP-compatible agent can connect without launching a separate binary.
 
 ### Connect an LLM via MCP
 
-If you're already running the Wikimem desktop app, point your LLM's MCP config
+If you're already running the WikiMem desktop app, point your LLM's MCP config
 at the local HTTP endpoint. For example,
 `claude_desktop_config.json` might include:
 

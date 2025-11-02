@@ -33,18 +33,18 @@ export function McpInstructionsDialog({
       <DialogContent className="max-w-xl border border-white/10 bg-slate-900 p-6 text-left text-slate-100">
         <DialogHeader className="flex flex-col gap-2 text-left">
           <DialogTitle className="text-lg font-semibold text-white">
-            Connect to Wikimem via MCP
+            Connect to WikiMem via MCP
           </DialogTitle>
           <DialogClose />
         </DialogHeader>
         <DialogDescription className="text-sm text-slate-200">
-          Wikimem exposes a Model Context Protocol (MCP) server over HTTP.
+          WikiMem exposes a Model Context Protocol (MCP) server over HTTP.
           Launch the desktop app first, then point your LLM to the local
           endpoint so agents can read and write memories.
         </DialogDescription>
         <ol className="list-decimal space-y-2 pl-5 text-sm text-slate-200">
           <li>
-            Add Wikimem to your LLM&apos;s MCP configuration using the HTTP
+            Add WikiMem to your LLM&apos;s MCP configuration using the HTTP
             transport. For example:
             <pre className="mt-2 rounded-2xl border border-white/10 bg-slate-950/80 p-3 text-xs text-slate-100">
               {`{
