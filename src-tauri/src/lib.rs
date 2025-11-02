@@ -12,7 +12,7 @@ pub fn run() {
   tauri::Builder::default()
     .plugin(tauri_plugin_opener::init())
     .setup(|app| {
-      mcp::spawn_mcp_stdio_server(app.handle().clone());
+      mcp::spawn_mcp_http_server(app.handle().clone());
       Ok(())
     })
     .invoke_handler(tauri::generate_handler![

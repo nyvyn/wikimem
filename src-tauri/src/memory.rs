@@ -142,11 +142,7 @@ impl MemoryStore {
     let id = id.unwrap_or_else(|| self.generate_timestamp_id());
     let path = self.file(&id);
 
-    let body_content = if body.trim().is_empty() {
-      format!("# {resolved_title}\n\n")
-    } else {
-      body
-    };
+    let body_content = normalize_body_with_heading(&body, &resolved_title);
 
     let mut file = File::create(&path).map_err(to_string)?;
     file.write_all(body_content.as_bytes()).map_err(to_string)?;
@@ -296,6 +292,47 @@ fn to_string<E: std::fmt::Display>(err: E) -> String {
   err.to_string()
 }
 
+fn normalize_body_with_heading(body: &str, title: &str) -> String {
+  if body.trim().is_empty() {
+    return format!("# {title}\n\n");
+  }
+
+  let sanitized = body.trim_start_matches('\u{feff}');
+  let mut rest_lines: Vec<&str> = Vec::new();
+  let mut seen_content = false;
+
+  for line in sanitized.lines() {
+    if !seen_content && line.trim().is_empty() {
+      continue;
+    }
+
+    if !seen_content {
+      seen_content = true;
+      if line.trim_start().starts_with('#') {
+        continue;
+      }
+    }
+
+    rest_lines.push(line);
+  }
+
+  let mut rest = rest_lines.join("\n");
+  if !rest.is_empty() && !rest.ends_with('\n') {
+    rest.push('\n');
+  }
+
+  let mut result = format!("# {title}\n");
+  if rest.is_empty() {
+    result.push('\n');
+  } else {
+    if !rest.starts_with('\n') {
+      result.push('\n');
+    }
+    result.push_str(&rest);
+  }
+  result
+}
+
 fn file_updated_at(path: &Path) -> i64 {
   path
     .metadata()
@@ -342,5 +379,44 @@ fn ellipsize(text: &str) -> String {
       .trim_end()
       .to_string()
       + "…"
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn normalize_inserts_heading_when_body_empty() {
+    let actual = normalize_body_with_heading("", "New Title");
+    assert_eq!(actual, "# New Title\n\n");
+  }
+
+  #[test]
+  fn normalize_adds_heading_when_missing() {
+    let body = "First paragraph\nSecond line";
+    let actual = normalize_body_with_heading(body, "Topic");
+    assert_eq!(actual, "# Topic\n\nFirst paragraph\nSecond line\n");
+  }
+
+  #[test]
+  fn normalize_replaces_existing_heading() {
+    let body = "# Old Title\n\nBody line\n";
+    let actual = normalize_body_with_heading(body, "New Title");
+    assert_eq!(actual, "# New Title\n\nBody line\n");
+  }
+
+  #[test]
+  fn normalize_handles_leading_whitespace() {
+    let body = "\n\n    Code block";
+    let actual = normalize_body_with_heading(body, "Snippet");
+    assert_eq!(actual, "# Snippet\n\n    Code block\n");
+  }
+
+  #[test]
+  fn normalize_drops_bom_and_replaces_heading() {
+    let body = "\u{feff}# Old Title\n\nBody";
+    let actual = normalize_body_with_heading(body, "Fresh Title");
+    assert_eq!(actual, "# Fresh Title\n\nBody\n");
   }
 }
