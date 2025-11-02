@@ -4,6 +4,9 @@ on:
   push:
     tags:
       - 'wikimem-v*'
+  release:
+    types:
+      - published
 
 jobs:
   publish-tauri:
