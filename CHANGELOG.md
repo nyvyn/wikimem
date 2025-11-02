@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/nyvyn/wikimem/compare/wikimem-v0.3.0...wikimem-v0.3.1) (2025-11-02)
+
+
+### Bug Fixes
+
+* update application name from tauri-nextjs-template to wikimem ([#19](https://github.com/nyvyn/wikimem/issues/19)) ([11b14ee](https://github.com/nyvyn/wikimem/commit/11b14eef1b3f5c815416d41d239e924ecb83fb86))
+
 ## [0.3.0](https://github.com/nyvyn/wikimem/compare/tauri-nextjs-template-v0.2.0...tauri-nextjs-template-v0.3.0) (2025-11-02)
 
 
