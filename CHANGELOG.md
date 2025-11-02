@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/nyvyn/wikimem/compare/wikimem-v0.3.1...wikimem-v0.3.2) (2025-11-02)
+
+
+### Bug Fixes
+
+* add release type for published events in publish.yml ([#21](https://github.com/nyvyn/wikimem/issues/21)) ([3901b63](https://github.com/nyvyn/wikimem/commit/3901b63ef6132df99ada15d9a6b11596b59db97a))
+
 ## [0.3.1](https://github.com/nyvyn/wikimem/compare/wikimem-v0.3.0...wikimem-v0.3.1) (2025-11-02)
 
 
