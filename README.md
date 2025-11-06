@@ -5,6 +5,8 @@ WikiMem is a desktop app that offers memory management for AI (e.g. Claude, Code
 It exposes an MCP server for AI agents to read and write memories as Markdown,
 which can then be viewed and edited in a wiki-style interface.
 
+[![Video Title](https://img.youtube.com/vi/vlDHxGOe3to/0.jpg)](https://www.youtube.com/watch?v=vlDHxGOe3to)
+
 ## Vision
 
 - **AI-accessible archive** – expose a full MCP server so copilots can add,
