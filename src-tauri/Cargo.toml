@@ -15,7 +15,7 @@ name = "wikimem_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2.5.1", features = [] }
+tauri-build = { version = "2.5.4", features = [] }
 
 [dependencies]
 anyhow = "1.0.100"
